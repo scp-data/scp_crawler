@@ -1,14 +1,28 @@
-# -*- coding: utf-8 -*-
-
-# Define here the models for your scraped items
-#
-# See documentation in:
-# https://docs.scrapy.org/en/latest/topics/items.html
-
 import scrapy
 
 
-class ScpCrawlerItem(scrapy.Item):
-    # define the fields for your item here like:
-    # name = scrapy.Field()
-    pass
+class ScpItem(scrapy.Item):
+    url = scrapy.Field()
+    title = scrapy.Field()
+    rating = scrapy.Field()
+    tags = scrapy.Field()
+    scp = scrapy.Field()
+    scp_number = scrapy.Field()
+    series = scrapy.Field()
+    raw_content = scrapy.Field()
+
+
+class ScpTale(scrapy.Item):
+    url = scrapy.Field()
+    title = scrapy.Field()
+    rating = scrapy.Field()
+    tags = scrapy.Field()
+    raw_content = scrapy.Field()
+
+
+class ScpGoi(scrapy.Item):
+    url = scrapy.Field()
+    title = scrapy.Field()
+    rating = scrapy.Field()
+    tags = scrapy.Field()
+    raw_content = scrapy.Field()

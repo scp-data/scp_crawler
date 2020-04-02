@@ -1,22 +1,11 @@
 import scrapy
 from scrapy.spiders import CrawlSpider, Rule
 from scrapy.linkextractors import LinkExtractor
+from ..items import ScpTale, ScpItem, ScpGoi
 from bs4 import BeautifulSoup
 import re
 
 DOMAIN = 'www.scp-wiki.net'
-
-class ScpItem(scrapy.Item):
-    url = scrapy.Field()
-    title = scrapy.Field()
-    rating = scrapy.Field()
-    tags = scrapy.Field()
-    scp = scrapy.Field()
-    scp_number = scrapy.Field()
-    series = scrapy.Field()
-
-    raw_content = scrapy.Field()
-
 
 class ScpSpider(CrawlSpider):
     name = 'scp'
@@ -50,23 +39,16 @@ class ScpSpider(CrawlSpider):
 
         item['scp'] = self.get_scp_identifier(item)
         item['scp_number'] = self.get_scp_number(item)
-
         item['series'] = self.get_series(item)
-        item['rating'] = self.get_rating(response, item)
 
-        item['raw_content'] = str(self.clean_content_soup(content_soup))
-        return item
-
-
-    def get_rating(self, response, item):
-        try:
-            return int(response.css('.rate-points .number::text').get())
-        except:
-            pass
-        # Editorial choice- this SCP was locked due to trolls
         if item['scp_number'] == 2721:
-            return 200
-        return 0
+            # Editorial choice- this SCP was locked due to trolls
+            item['rating'] = 200
+        else:
+            item['rating'] = get_rating(response)
+
+        item['raw_content'] = str(clean_content_soup(content_soup))
+        return item
 
     def get_scp_identifier(self, item):
         try:
@@ -101,14 +83,88 @@ class ScpSpider(CrawlSpider):
 
         return 'other'
 
-    def clean_content_soup(self, content_soup):
-        # Remove Footer
-        [x.extract() for x in content_soup.find_all("div", {'class': 'footer-wikiwalk-nav'})]
 
-        # Remove Ratings Bar
-        [x.extract() for x in content_soup.find_all("div", {'class': 'page-rate-widget-box'})]
+class TaleSpider(CrawlSpider):
+    name = 'tale'
 
-        # Remove Empty Divs
-        [x.extract() for x in content_soup.find_all("div") if len(x.get_text(strip=True)) == 0]
+    start_urls = [f"http://{DOMAIN}/tales-by-title", f"http://{DOMAIN}/system:page-tags/tag/tale"]
 
-        return content_soup
+    allowed_domains = [DOMAIN]
+
+    rules = (
+        Rule(LinkExtractor(allow=[re.escape('tales-by-title'), re.escape('system:page-tags/tag/tale')])),
+        Rule(LinkExtractor(allow=[r'.*']), callback='parse_tale') )
+
+    def parse_tale(self, response):
+        self.logger.debug('Reviewing Potential SCP Tale page: %s', response.url)
+        content = response.css('#page-content').get()
+        tags = response.css('.page-tags a::text').getall()
+        if not content or not tags:
+            return False
+        if 'tale' not in tags:
+            return False
+
+        self.logger.info('Processing SCP Tale page: %s', response.url)
+        content_soup = BeautifulSoup(content, 'lxml')
+
+        item = ScpTale()
+        item['title'] = response.css('title::text').get()
+        item['url'] = response.url
+        item['tags'] = tags
+        item['rating'] = get_rating(response, item)
+        item['raw_content'] = str(clean_content_soup(content_soup))
+        return item
+
+
+class GoiSpider(CrawlSpider):
+    name = 'goi'
+
+    start_urls = [f"http://{DOMAIN}/goi-formats", f"http://{DOMAIN}/system:page-tags/tag/goi-format"]
+
+    allowed_domains = [DOMAIN]
+
+    rules = (
+        Rule(LinkExtractor(allow=[re.escape('tales-by-title'), re.escape('system:page-tags/tag/goi-format')])),
+        Rule(LinkExtractor(allow=[r'.*']), callback='parse_tale') )
+
+    def parse_tale(self, response):
+        self.logger.debug('Reviewing Potential SCP GOI page: %s', response.url)
+        content = response.css('#page-content').get()
+        tags = response.css('.page-tags a::text').getall()
+        if not content or not tags:
+            return False
+        if 'goi-format' not in tags:
+            return False
+
+        self.logger.info('Processing SCP GOI page: %s', response.url)
+        content_soup = BeautifulSoup(content, 'lxml')
+
+        item = ScpGoi()
+        item['title'] = response.css('title::text').get()
+        item['url'] = response.url
+        item['tags'] = tags
+        item['rating'] = get_rating(response, item)
+        item['raw_content'] = str(clean_content_soup(content_soup))
+        return item
+
+
+
+def get_rating(response):
+    try:
+        return int(response.css('.rate-points .number::text').get())
+    except:
+        pass
+    return 0
+
+
+def clean_content_soup(content_soup):
+    # Remove Footer
+    [x.extract() for x in content_soup.find_all("div", {'class': 'footer-wikiwalk-nav'})]
+
+    # Remove Ratings Bar
+    [x.extract() for x in content_soup.find_all("div", {'class': 'page-rate-widget-box'})]
+
+    # Remove Empty Divs
+    [x.extract() for x in content_soup.find_all("div") if len(x.get_text(strip=True)) == 0]
+
+    return content_soup
