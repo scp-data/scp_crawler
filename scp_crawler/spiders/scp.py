@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import re
 
 DOMAIN = 'www.scp-wiki.net'
+INT_DOMAIN = 'scp-int.wikidot.com'
 
 class ScpSpider(CrawlSpider):
     name = 'scp'
@@ -20,13 +21,20 @@ class ScpSpider(CrawlSpider):
         Rule(LinkExtractor(allow=[r'scp-\d{3,}(?:-[\w|\d]+)*']), callback='parse_item'),
         Rule(LinkExtractor(allow=[r'.*-proposal.*']), callback='parse_item') )
 
+    def validate(self, tags):
+        if 'scp' not in tags:
+            return False
+        if 'tale' in tags:
+            return False
+        return True
+
     def parse_item(self, response):
         self.logger.debug('Reviewing Potential SCP Item page: %s', response.url)
         content = response.css('#page-content').get()
         tags = response.css('.page-tags a::text').getall()
         if not content or not tags:
             return False
-        if 'scp' not in tags:
+        if not self.validate(tags):
             return False
 
         self.logger.info('Processing SCP Item page: %s', response.url)
@@ -52,17 +60,20 @@ class ScpSpider(CrawlSpider):
 
     def get_scp_identifier(self, item):
         try:
-            return re.search('scp-\d{3,4}(?:-[\w|\d]*)?', item['url'])[0]
+            return re.search('scp(?:-[\w|\d]*)?-\d{3,4}(?:-[\w|\d]*)?', item['url'])[0]
         except:
             pass
         if 'proposal' in item['url'] or '001-proposal' in item['tags']:
             return 'scp-001'
         if item['url'].endswith('taboo') and '4000' in item['tags']:
             return 'scp-4000'
-        return False
+        return 'unknown'
 
     def get_scp_number(self, item):
-        return int(re.findall(r'[0-9]+', item['scp'])[0])
+        matches = re.findall(r'[0-9]+', item['scp'])
+        if matches:
+            return int(matches[0])
+        return 0
 
     def get_series(self, item):
         if item['scp'].lower().endswith('-j') or 'joke' in item['tags']:
@@ -80,6 +91,31 @@ class ScpSpider(CrawlSpider):
         for x in range(1, 10):
             if number < x * 1000:
                 return f"series-{x}"
+
+        return 'other'
+
+
+class ScpIntSpider(ScpSpider):
+    name = 'scpint'
+
+    start_urls = [f"http://{INT_DOMAIN}/"]
+
+    allowed_domains = [INT_DOMAIN]
+
+    rules = (
+        Rule(LinkExtractor(allow=[r'system:page-tags/tag/.*'])),
+        Rule(LinkExtractor(allow=[r'.*-hub'])),
+        Rule(LinkExtractor(allow=[r'scp-.*']), callback='parse_item'),
+        )
+
+    def get_series(self, item):
+        if item['scp'].lower().endswith('-j') or 'joke' in item['tags']:
+            return 'joke'
+
+        name_chunks = item['scp'].split('-')
+        for chunk in name_chunks:
+            if chunk.lower() != 'scp' and not chunk.isdigit():
+                return chunk
 
         return 'other'
 
@@ -111,9 +147,17 @@ class TaleSpider(CrawlSpider):
         item['title'] = response.css('title::text').get()
         item['url'] = response.url
         item['tags'] = tags
-        item['rating'] = get_rating(response, item)
+        item['rating'] = get_rating(response)
         item['raw_content'] = str(clean_content_soup(content_soup))
         return item
+
+
+class TaleIntSpider(TaleSpider):
+    name = 'taleint'
+
+    start_urls = [f"http://{INT_DOMAIN}/tales-by-title", f"http://{INT_DOMAIN}/system:page-tags/tag/tale"]
+
+    allowed_domains = [INT_DOMAIN]
 
 
 class GoiSpider(CrawlSpider):
@@ -143,7 +187,7 @@ class GoiSpider(CrawlSpider):
         item['title'] = response.css('title::text').get()
         item['url'] = response.url
         item['tags'] = tags
-        item['rating'] = get_rating(response, item)
+        item['rating'] = get_rating(response)
         item['raw_content'] = str(clean_content_soup(content_soup))
         return item
 
