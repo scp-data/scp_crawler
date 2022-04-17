@@ -17,6 +17,7 @@ SPIDERS = [
 configure_logging()
 runner = CrawlerRunner(get_project_settings())
 
+
 @defer.inlineCallbacks
 def crawl():
     for spider in SPIDERS:
