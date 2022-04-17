@@ -5,9 +5,9 @@ from bs4 import BeautifulSoup
 from scrapy.linkextractors import LinkExtractor
 from scrapy.spiders import CrawlSpider, Rule
 
-from ..items import ScpGoi, ScpItem, ScpTale
+from ..items import ScpGoi, ScpItem, ScpTale, ScpTitle
 
-DOMAIN = "www.scp-wiki.net"
+DOMAIN = "scp-wiki.wikidot.com"
 INT_DOMAIN = "scp-int.wikidot.com"
 
 
@@ -101,8 +101,38 @@ class ScpSpider(CrawlSpider):
         return "other"
 
 
+class ScpTitleSpider(CrawlSpider):
+    name = "scp_titles"
+
+    start_urls = [f"http://{DOMAIN}/"]
+
+    allowed_domains = [DOMAIN]
+
+    rules = (Rule(LinkExtractor(allow=[r"scp-series(?:-\d*)?", "scp-ex"]), callback="parse_item"),)
+
+    def parse_item(self, response):
+        self.logger.warning("Reviewing SCP Index page: %s", response.url)
+
+        listings = response.css(".content-panel > ul > li")
+        for listing in listings:
+            try:
+                self.logger.info(listing.get())
+                scp = listing.xpath("a/text()").get()
+                if scp == "taboo":
+                    scp = "scp-4000"
+                    title = "Taboo"
+                else:
+                    title = listing.css("li::text").get().strip(" -")
+                item = ScpTitle()
+                item["scp"] = scp
+                item["title"] = title
+                yield item
+            except:
+                pass
+
+
 class ScpIntSpider(ScpSpider):
-    name = "scpint"
+    name = "scp_int"
 
     start_urls = [f"http://{INT_DOMAIN}/"]
 
@@ -124,6 +154,16 @@ class ScpIntSpider(ScpSpider):
                 return chunk
 
         return "other"
+
+
+class ScpIntTitleSpider(ScpTitleSpider):
+    name = "scp_int_titles"
+
+    start_urls = [f"http://{INT_DOMAIN}/"]
+
+    allowed_domains = [INT_DOMAIN]
+
+    rules = Rule(LinkExtractor(allow=[r".*-hub?"]), callback="parse_item")
 
 
 class TaleSpider(CrawlSpider):
@@ -170,7 +210,7 @@ class TaleSpider(CrawlSpider):
 
 
 class TaleIntSpider(TaleSpider):
-    name = "taleint"
+    name = "tale_int"
 
     start_urls = [
         f"http://{INT_DOMAIN}/tales-by-title",
@@ -233,22 +273,12 @@ def get_rating(response):
 
 def clean_content_soup(content_soup):
     # Remove Footer
-    [
-        x.extract()
-        for x in content_soup.find_all("div", {"class": "footer-wikiwalk-nav"})
-    ]
+    [x.extract() for x in content_soup.find_all("div", {"class": "footer-wikiwalk-nav"})]
 
     # Remove Ratings Bar
-    [
-        x.extract()
-        for x in content_soup.find_all("div", {"class": "page-rate-widget-box"})
-    ]
+    [x.extract() for x in content_soup.find_all("div", {"class": "page-rate-widget-box"})]
 
     # Remove Empty Divs
-    [
-        x.extract()
-        for x in content_soup.find_all("div")
-        if len(x.get_text(strip=True)) == 0
-    ]
+    [x.extract() for x in content_soup.find_all("div") if len(x.get_text(strip=True)) == 0]
 
     return content_soup

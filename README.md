@@ -58,13 +58,16 @@ In addition the SCP Items include:
 
 The crawler generates a series of json files containing an array of objects representing each crawled item.
 
-| File         | Source        | Type |
-|--------------|---------------|------|
-| goi.json     | Main          | Tale |
-| scp.json     | Main          | Item |
-| scpint.json  | International | Item |
-| tale.json    | Main          | Tale |
-| taleint.json | International | Tale |
+| File                | Source        | Type |
+|---------------------|---------------|------|
+| goi.json            | Main          | Tale |
+| scp.json            | Main          | Item |
+| scp_titles.json     | Main          | Item |
+| tale.json           | Main          | Tale |
+| scp_int.json        | International | Item |
+| scp_int_titles.json | International | Item |
+| tale_int.json       | International | Tale |
+
 
 
 ## Content Licensing

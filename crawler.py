@@ -8,8 +8,10 @@ from scp_crawler.spiders import scp
 
 SPIDERS = [
     scp.ScpSpider,
-    scp.ScpIntSpider,
+    scp.ScpTitle,
     scp.TaleSpider,
+    scp.ScpIntSpider,
+    scp.ScpIntTitleSpider,
     scp.TaleIntSpider,
     scp.GoiSpider,
 ]

@@ -1,6 +1,11 @@
 import scrapy
 
 
+class ScpTitle(scrapy.Item):
+    title = scrapy.Field()
+    scp = scrapy.Field()
+
+
 class ScpItem(scrapy.Item):
     url = scrapy.Field()
     title = scrapy.Field()

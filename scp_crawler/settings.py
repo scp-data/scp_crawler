@@ -14,7 +14,7 @@ BOT_NAME = "scp_crawler"
 SPIDER_MODULES = ["scp_crawler.spiders"]
 NEWSPIDER_MODULE = "scp_crawler.spiders"
 
-LOG_LEVEL = "INFO"
+LOG_LEVEL = "DEBUG"
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 # USER_AGENT = 'scp_crawler (+http://www.yourdomain.com)'
@@ -90,6 +90,6 @@ AUTOTHROTTLE_TARGET_CONCURRENCY = CONCURRENT_REQUESTS_PER_DOMAIN
 # HTTPCACHE_IGNORE_HTTP_CODES = []
 # HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
 
+DIRECTORY = "data"
 FEED_FORMAT = "json"
 FEED_URL = f"{DIRECTORY}/%(name)s.json"
-DIRECTORY = "data"
