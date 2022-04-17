@@ -1,8 +1,10 @@
 import scrapy
-from scrapy.crawler import CrawlerProcess
-from scp_crawler.spiders import scp
+from scrapy.crawler import CrawlerProcess, CrawlerRunner
+from scrapy.utils.log import configure_logging
+from scrapy.utils.project import get_project_settings
+from twisted.internet import defer, reactor
 
-DIRECTORY='data'
+from scp_crawler.spiders import scp
 
 SPIDERS = [
     scp.ScpSpider,
@@ -12,13 +14,15 @@ SPIDERS = [
     scp.GoiSpider,
 ]
 
-process = CrawlerProcess(settings={
-    'FEED_FORMAT': 'json',
-    'FEED_URI': f"{DIRECTORY}/%(name)s.json",
-    'LOG_LEVEL': 'INFO'
-})
+configure_logging()
+runner = CrawlerRunner(get_project_settings())
 
-for spider in SPIDERS:
-    process.crawl(spider)
+@defer.inlineCallbacks
+def crawl():
+    for spider in SPIDERS:
+        yield runner.crawl(spider)
+    reactor.stop()
 
-process.start() # the script will block here until the crawling is finished
+
+crawl()
+reactor.run()

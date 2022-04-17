@@ -28,7 +28,7 @@ scrapy list
 
 To crawl the International Hub for SCP Items and save as json:
 ```
-scrapy crawl spcint -o scp_international_items.json
+scrapy crawl scpint -o scp_international_items.json
 ```
 
 ## Content Structure

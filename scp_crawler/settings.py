@@ -89,3 +89,7 @@ AUTOTHROTTLE_TARGET_CONCURRENCY = CONCURRENT_REQUESTS_PER_DOMAIN
 #HTTPCACHE_DIR = 'httpcache'
 #HTTPCACHE_IGNORE_HTTP_CODES = []
 #HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
+
+FEED_FORMAT = 'json'
+FEED_URL=f"{DIRECTORY}/%(name)s.json"
+DIRECTORY='data'
