@@ -208,7 +208,7 @@ class ScpIntTitleSpider(ScpTitleSpider):
 
     allowed_domains = [INT_DOMAIN]
 
-    rules = Rule(LinkExtractor(allow=[r".*-hub?"]), callback="parse_item")
+    rules = (Rule(LinkExtractor(allow=[r".*-hub?"]), callback="parse_item"),)
 
 
 class ScpIntTaleSpider(ScpTaleSpider):
