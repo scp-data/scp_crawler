@@ -14,12 +14,14 @@ INT_DOMAIN = "scp-int.wikidot.com"
 class ScpSpider(CrawlSpider):
     name = "scp"
 
-    start_urls = [f"http://{DOMAIN}/"]
+    start_urls = [
+        f"http://{DOMAIN}/",
+        f"http://{DOMAIN}/system:page-tags/tag/scp",
+    ]
 
     allowed_domains = [DOMAIN]
 
     rules = (
-        Rule(LinkExtractor(allow=[r"system:page-tags/tag/.*"])),
         Rule(LinkExtractor(allow=[r"scp-series(?:-\d*)?", "scp-ex"])),
         Rule(LinkExtractor(allow=[r"scp-\d{3,}(?:-[\w|\d]+)*"]), callback="parse_item"),
         Rule(LinkExtractor(allow=[r".*-proposal.*"]), callback="parse_item"),
@@ -131,43 +133,8 @@ class ScpTitleSpider(CrawlSpider):
                 pass
 
 
-class ScpIntSpider(ScpSpider):
-    name = "scp_int"
-
-    start_urls = [f"http://{INT_DOMAIN}/"]
-
-    allowed_domains = [INT_DOMAIN]
-
-    rules = (
-        Rule(LinkExtractor(allow=[r"system:page-tags/tag/.*"])),
-        Rule(LinkExtractor(allow=[r".*-hub"])),
-        Rule(LinkExtractor(allow=[r"scp-.*"]), callback="parse_item"),
-    )
-
-    def get_series(self, item):
-        if item["scp"].lower().endswith("-j") or "joke" in item["tags"]:
-            return "joke"
-
-        name_chunks = item["scp"].split("-")
-        for chunk in name_chunks:
-            if chunk.lower() != "scp" and not chunk.isdigit():
-                return chunk
-
-        return "other"
-
-
-class ScpIntTitleSpider(ScpTitleSpider):
-    name = "scp_int_titles"
-
-    start_urls = [f"http://{INT_DOMAIN}/"]
-
-    allowed_domains = [INT_DOMAIN]
-
-    rules = Rule(LinkExtractor(allow=[r".*-hub?"]), callback="parse_item")
-
-
-class TaleSpider(CrawlSpider):
-    name = "tale"
+class ScpTaleSpider(CrawlSpider):
+    name = "scp_tales"
 
     start_urls = [
         f"http://{DOMAIN}/tales-by-title",
@@ -209,8 +176,43 @@ class TaleSpider(CrawlSpider):
         return item
 
 
-class TaleIntSpider(TaleSpider):
-    name = "tale_int"
+class ScpIntSpider(ScpSpider):
+    name = "scp_int"
+
+    start_urls = [f"http://{INT_DOMAIN}/"]
+
+    allowed_domains = [INT_DOMAIN]
+
+    rules = (
+        Rule(LinkExtractor(allow=[r"system:page-tags/tag/.*"])),
+        Rule(LinkExtractor(allow=[r".*-hub"])),
+        Rule(LinkExtractor(allow=[r"scp-.*"]), callback="parse_item"),
+    )
+
+    def get_series(self, item):
+        if item["scp"].lower().endswith("-j") or "joke" in item["tags"]:
+            return "joke"
+
+        name_chunks = item["scp"].split("-")
+        for chunk in name_chunks:
+            if chunk.lower() != "scp" and not chunk.isdigit():
+                return chunk
+
+        return "other"
+
+
+class ScpIntTitleSpider(ScpTitleSpider):
+    name = "scp_int_titles"
+
+    start_urls = [f"http://{INT_DOMAIN}/"]
+
+    allowed_domains = [INT_DOMAIN]
+
+    rules = Rule(LinkExtractor(allow=[r".*-hub?"]), callback="parse_item")
+
+
+class ScpIntTaleSpider(ScpTaleSpider):
+    name = "scp_int_tales"
 
     start_urls = [
         f"http://{INT_DOMAIN}/tales-by-title",

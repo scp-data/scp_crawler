@@ -14,10 +14,10 @@ BOT_NAME = "scp_crawler"
 SPIDER_MODULES = ["scp_crawler.spiders"]
 NEWSPIDER_MODULE = "scp_crawler.spiders"
 
-LOG_LEVEL = "DEBUG"
+LOG_LEVEL = "INFO"
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
-# USER_AGENT = 'scp_crawler (+http://www.yourdomain.com)'
+USER_AGENT = "scp_crawler (https://github.com/tedivm/scp_crawler)"
 
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = True

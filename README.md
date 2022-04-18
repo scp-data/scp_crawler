@@ -14,7 +14,7 @@ pip install -r requirements.txt
 
 Then to run all of the spiders and create a full data dump of the SCP Wiki and SCP International Hub in the `data` directory:
 ```
-python crawler.py
+make data
 ```
 
 ## Custom Crawl with scrapy cli
