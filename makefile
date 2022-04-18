@@ -28,13 +28,13 @@ data/scp_tales.json: .venv
 scp_int: data/scp_int_titles.json data/scp_int_items.json data/scp_int_tales.json
 
 data/scp_int_titles.json: .venv
-	python -m scrapy crawl scp_titles -o data/scp_int_titles.json
+	python -m scrapy crawl scp_int_titles -o data/scp_int_titles.json
 
 data/scp_int_items.json: .venv
-	python -m scrapy crawl scp -o data/scp_int_items.json
+	python -m scrapy crawl scp_int -o data/scp_int_items.json
 
 data/scp_int_tales.json: .venv
-	python -m scrapy crawl scp_tales -o data/scp_int_tales.json
+	python -m scrapy crawl scp_int_tales -o data/scp_int_tales.json
 
 goi: data/goi.json
 
