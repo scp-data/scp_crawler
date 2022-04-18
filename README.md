@@ -5,15 +5,14 @@ This is a web crawler built with scrapy and designed to extract data from the SC
 ## Installation
 
 ```
-python3 -m venv env
-source ./env/bin/activate
-pip install -r requirements.txt
+make install
 ```
 
 ## Simple Crawl
 
 Then to run all of the spiders and create a full data dump of the SCP Wiki and SCP International Hub in the `data` directory:
-```
+
+```bash
 make data
 ```
 
@@ -22,13 +21,15 @@ make data
 Individual spiders with custom settings can also be called using the `scrapy` command line tool.
 
 To show Available Spiders:
-```
+
+```bash
 scrapy list
 ```
 
-To crawl the International Hub for SCP Items and save as json:
-```
-scrapy crawl scpint -o scp_international_items.json
+To crawl the International Hub for SCP Items and save to a custom location:
+
+```bash
+scrapy crawl scp_int -o scp_international_items.json
 ```
 
 ## Content Structure
@@ -58,16 +59,19 @@ In addition the SCP Items include:
 
 The crawler generates a series of json files containing an array of objects representing each crawled item.
 
-| File                | Source        | Type |
-|---------------------|---------------|------|
-| goi.json            | Main          | Tale |
-| scp.json            | Main          | Item |
-| scp_titles.json     | Main          | Item |
-| tale.json           | Main          | Tale |
-| scp_int.json        | International | Item |
-| scp_int_titles.json | International | Item |
-| tale_int.json       | International | Tale |
+| File                | Source        | Type  | Target  |
+|---------------------|---------------|-------|---------|
+| goi.json            | Main          | Tale  | goi     |
+| scp_items.json      | Main          | Item  | scp     |
+| scp_titles.json     | Main          | Title | scp     |
+| scp_tales.json      | Main          | Tale  | scp     |
+| scp_int.json        | International | Item  | scp_int |
+| scp_int_titles.json | International | Title | scp_int |
+| scp_int_tales.json  | International | Tale  | scp_int |
 
+Running `make TARGET` (such as `make goi` or `make scp`) will generate the site specific files. Running `make data` will fill in any missing files.
+
+To regenerate all files run `make fresh`.
 
 
 ## Content Licensing

@@ -3,6 +3,13 @@ PYTHON_VENV = source .venv/bin/activate &&
 
 data: scp scp_int goi
 
+install: .venv
+
+fresh: clean data
+
+clean:
+	rm -Rf ./data/*
+
 .venv:
 	python -m venv .venv
 	source ./venv/bin/activate && python -m pip install .
