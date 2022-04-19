@@ -4,10 +4,12 @@ import scrapy
 class ScpTitle(scrapy.Item):
     title = scrapy.Field()
     scp = scrapy.Field()
+    link = scrapy.Field()
 
 
 class ScpItem(scrapy.Item):
     url = scrapy.Field()
+    link = scrapy.Field()
     title = scrapy.Field()
     rating = scrapy.Field()
     tags = scrapy.Field()

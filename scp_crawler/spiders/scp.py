@@ -1,4 +1,5 @@
 import re
+from logging import getLogger
 
 import scrapy
 from bs4 import BeautifulSoup
@@ -6,6 +7,8 @@ from scrapy.linkextractors import LinkExtractor
 from scrapy.spiders import CrawlSpider, Rule
 
 from ..items import ScpGoi, ScpItem, ScpTale, ScpTitle
+
+logger = getLogger(__name__)
 
 DOMAIN = "scp-wiki.wikidot.com"
 INT_DOMAIN = "scp-int.wikidot.com"
@@ -49,9 +52,10 @@ class ScpSpider(CrawlSpider):
         item = ScpItem()
         item["title"] = response.css("title::text").get()
         item["url"] = response.url
+        item["link"] = response.url.replace(f"http://{DOMAIN}", "").replace(f"https://{DOMAIN}", "")
         item["tags"] = tags
 
-        item["scp"] = self.get_scp_identifier(item)
+        item["scp"] = self.get_scp_identifier(item).upper()
         item["scp_number"] = self.get_scp_number(item)
         item["series"] = self.get_series(item)
 
@@ -110,27 +114,41 @@ class ScpTitleSpider(CrawlSpider):
 
     allowed_domains = [DOMAIN]
 
-    rules = (Rule(LinkExtractor(allow=[r"scp-series(?:-\d*)?", "scp-ex"]), callback="parse_item"),)
+    rules = (Rule(LinkExtractor(allow=[r"scp-series(?:-\d*)?", "scp-ex"]), callback="parse_titles"),)
 
-    def parse_item(self, response):
+    def parse_titles(self, response):
         self.logger.warning("Reviewing SCP Index page: %s", response.url)
-
         listings = response.css(".content-panel > ul > li")
         for listing in listings:
             try:
-                self.logger.info(listing.get())
+                self.logger.info(f"Processing Line: {listing.get()}")
                 scp = listing.xpath("a/text()").get()
+                link = listing.xpath("a/@href").get()
                 if scp == "taboo":
-                    scp = "scp-4000"
+                    scp = "SCP-4000"
                     title = "Taboo"
+                if scp.lower().startswith("SCP-5309"):
+                    scp = "SCP-5309"
+                    title = "SCP-5309 is not to exist."
+                elif not scp.lower().startswith("scp-"):
+                    title = scp
+                    scp = link.strip("/").upper()
                 else:
-                    title = listing.css("li::text").get().strip(" -")
+                    listing_text = BeautifulSoup(listing.get()).get_text()
+                    results = re.findall(r".* - (.*)", listing_text)
+                    if len(results) > 0:
+                        title = results[0]
+                    else:
+                        logger.warn(f"Assigning default to {scp} with '{listing_text}'")
+                        title = scp
+
                 item = ScpTitle()
                 item["scp"] = scp
                 item["title"] = title
+                item["link"] = link
                 yield item
             except:
-                pass
+                logger.exception("Failed to process line.")
 
 
 class ScpTaleSpider(CrawlSpider):
@@ -208,7 +226,7 @@ class ScpIntTitleSpider(ScpTitleSpider):
 
     allowed_domains = [INT_DOMAIN]
 
-    rules = (Rule(LinkExtractor(allow=[r".*-hub?"]), callback="parse_item"),)
+    rules = (Rule(LinkExtractor(allow=[r".*-hub?"]), callback="parse_titles"),)
 
 
 class ScpIntTaleSpider(ScpTaleSpider):
