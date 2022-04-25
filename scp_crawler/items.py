@@ -16,6 +16,7 @@ class ScpItem(scrapy.Item):
     scp = scrapy.Field()
     scp_number = scrapy.Field()
     series = scrapy.Field()
+    history = scrapy.Field()
     raw_content = scrapy.Field()
 
 

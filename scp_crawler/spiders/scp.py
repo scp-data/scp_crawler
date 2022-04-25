@@ -1,14 +1,14 @@
 import re
-from logging import getLogger
+from pprint import pprint
 
+import httpx
+import requests
 import scrapy
 from bs4 import BeautifulSoup
 from scrapy.linkextractors import LinkExtractor
 from scrapy.spiders import CrawlSpider, Rule
 
 from ..items import ScpGoi, ScpItem, ScpTale, ScpTitle
-
-logger = getLogger(__name__)
 
 DOMAIN = "scp-wiki.wikidot.com"
 INT_DOMAIN = "scp-int.wikidot.com"
@@ -24,6 +24,8 @@ class ScpSpider(CrawlSpider):
 
     allowed_domains = [DOMAIN]
 
+    domain = DOMAIN
+
     rules = (
         Rule(LinkExtractor(allow=[r"scp-series(?:-\d*)?", "scp-ex"])),
         Rule(LinkExtractor(allow=[r"scp-\d{3,}(?:-[\w|\d]+)*"]), callback="parse_item"),
@@ -36,6 +38,21 @@ class ScpSpider(CrawlSpider):
         if "tale" in tags:
             return False
         return True
+
+    # async def parse_item(self, response):
+    #     self.logger.debug("Reviewing Potential SCP Item page: %s", response.url)
+    #     content = response.css("#page-content").get()
+    #     tags = response.css(".page-tags a::text").getall()
+    #     if not content or not tags:
+    #         return False
+    #     if not self.validate(tags):
+    #         return False
+
+    #     request = scrapy.Request('http://www.example.com/index.html',
+    #                             callback=self.parse_page2,
+    #                             cb_kwargs={'item_page_response':response})
+    #     request.cb_kwargs['foo'] = 'bar'  # add more arguments for the callback
+    #     yield request
 
     def parse_item(self, response):
         self.logger.debug("Reviewing Potential SCP Item page: %s", response.url)
@@ -52,9 +69,12 @@ class ScpSpider(CrawlSpider):
         item = ScpItem()
         item["title"] = response.css("title::text").get()
         item["url"] = response.url
-        item["link"] = response.url.replace(f"http://{DOMAIN}", "").replace(f"https://{DOMAIN}", "")
+        item["link"] = response.url.replace(f"http://{self.domain}", "").replace(f"https://{self.domain}", "")
         item["tags"] = tags
-
+        try:
+            item["history"] = self.get_history(response)
+        except:
+            item["history"] = {}
         item["scp"] = self.get_scp_identifier(item).upper()
         item["scp_number"] = self.get_scp_number(item)
         item["series"] = self.get_series(item)
@@ -66,7 +86,85 @@ class ScpSpider(CrawlSpider):
             item["rating"] = get_rating(response)
 
         item["raw_content"] = str(clean_content_soup(content_soup))
+
         return item
+
+    def get_history(self, response):
+        # The token has to be in the cookie *and* the request itself.
+        token = self.get_token(response)
+        page_id = self.get_page_id(response)
+        changes = {}
+
+        if not page_id:
+            self.logger.error(f"Unable to get history due to lack of page_id: {response.url}")
+            return False
+
+        if not token:
+            self.logger.error(f"Unable to get history due to lack of token: {response.url}")
+            return False
+
+        for i in range(1, 5):
+            history_response = requests.post(
+                f"https://{self.domain}/ajax-module-connector.php",
+                data={
+                    "wikidot_token7": token,
+                    "page_id": page_id,
+                    "moduleName": "history/PageRevisionListModule",
+                    "callbackindex": "2",
+                    "options": '{"all":true}',
+                    "page": i,
+                    "perpage": 20,
+                },
+                cookies={"wikidot_token7": token},
+            )
+            try:
+                history = history_response.json()
+                soup = BeautifulSoup(history["body"], "lxml")
+                rows = soup.table.find_all("tr")
+            except:
+                self.logger.error(f"Unable to parse history lookup. {response.url}")
+                return False
+            for row in rows:
+                try:
+                    if not "id" in row.attrs:
+                        continue
+                    columns = row.find_all("td")
+                    change_id = columns[0].text.replace(".", "").strip()
+                    change_author = columns[4].text.strip()
+                    change_author_href = columns[4].span.a["href"].strip()
+                    change_date = columns[5].text.strip()
+                    changes[change_id] = {
+                        "author": change_author,
+                        "author_href": change_author_href,
+                        "date": change_date,
+                    }
+                except:
+                    pass
+
+            # The "0" change is the first revision, and the last one that shows up.
+            # If we have it then we're done.
+            if "0" in changes:
+                break
+
+        return changes
+
+    def get_page_id(self, response):
+        return re.search(r"WIKIREQUEST\.info\.pageId\s+=\s+(\d+);", response.text)[1]
+
+    def get_token(self, response):
+        for raw_cookie in response.headers.getlist("Set-Cookie"):
+            split_cookie = raw_cookie.decode("utf-8").split(";")[0].split("=")
+            if split_cookie[0] == "wikidot_token7":
+                return split_cookie[1]
+
+        # Unable to get token from initial request, so we send another.
+        # This should happen very, very rarely (generally only with new threads).
+        new_response = requests.get(response.url)
+        for cookie in new_response.cookies:
+            if cookie.name == "wikidot_token7":
+                return cookie.value
+
+        return False
 
     def get_scp_identifier(self, item):
         try:
@@ -139,7 +237,7 @@ class ScpTitleSpider(CrawlSpider):
                     if len(results) > 0:
                         title = results[0]
                     else:
-                        logger.warn(f"Assigning default to {scp} with '{listing_text}'")
+                        self.logger.warn(f"Assigning default to {scp} with '{listing_text}'")
                         title = scp
 
                 item = ScpTitle()
@@ -148,7 +246,7 @@ class ScpTitleSpider(CrawlSpider):
                 item["link"] = link
                 yield item
             except:
-                logger.exception("Failed to process line.")
+                self.logger.exception("Failed to process line.")
 
 
 class ScpTaleSpider(CrawlSpider):
@@ -200,6 +298,8 @@ class ScpIntSpider(ScpSpider):
     start_urls = [f"http://{INT_DOMAIN}/"]
 
     allowed_domains = [INT_DOMAIN]
+
+    domain = INT_DOMAIN
 
     rules = (
         Rule(LinkExtractor(allow=[r"system:page-tags/tag/.*"])),

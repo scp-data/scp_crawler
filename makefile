@@ -14,13 +14,17 @@ clean:
 	python -m venv .venv
 	source ./venv/bin/activate && python -m pip install .
 
-scp: data/scp_titles.json data/scp_items.json data/scp_tales.json
+scp: data/scp_titles.json data/scp_items.json data/scp_tales.json items_postprocess
 
 data/scp_titles.json: .venv
 	python -m scrapy crawl scp_titles -o data/scp_titles.json
 
 data/scp_items.json: .venv
 	$(PYTHON_VENV) python -m scrapy crawl scp -o data/scp_items.json
+
+items_postprocess: data/scp_titles.json data/scp_items.json
+	$(PYTHON_VENV) python ./scp_crawler/postprocessing.py
+
 
 data/scp_tales.json: .venv
 	python -m scrapy crawl scp_tales -o data/scp_tales.json
@@ -40,3 +44,4 @@ goi: data/goi.json
 
 data/goi.json: .venv
 	python -m scrapy crawl goi -o data/goi.json
+

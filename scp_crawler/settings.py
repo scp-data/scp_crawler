@@ -93,3 +93,8 @@ AUTOTHROTTLE_TARGET_CONCURRENCY = CONCURRENT_REQUESTS_PER_DOMAIN
 DIRECTORY = "data"
 FEED_FORMAT = "json"
 FEED_URL = f"{DIRECTORY}/%(name)s.json"
+
+DOWNLOADER_MIDDLEWARES = {
+    "scrapy.downloadermiddlewares.cookies.CookiesMiddleware": 100,
+    "scrapy.downloadermiddlewares.httpcache.HttpCacheMiddleware": 900,
+}
