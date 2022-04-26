@@ -1,7 +1,7 @@
 import re
+import sys
 from pprint import pprint
 
-import httpx
 import requests
 import scrapy
 from bs4 import BeautifulSoup
@@ -12,19 +12,96 @@ from ..items import ScpGoi, ScpItem, ScpTale, ScpTitle
 
 DOMAIN = "scp-wiki.wikidot.com"
 INT_DOMAIN = "scp-int.wikidot.com"
+MAX_HISTORY_PAGES = 5
+MAIN_TOKEN = "123456"
 
 
-class ScpSpider(CrawlSpider):
+class HistoryMixin:
+    def parse_history(self, response, item, history_page=1):
+        self.logger.info(f"Reviewing Page {item['page_id']} history")
+
+        page_id = item["page_id"]
+        changes = item["history"] if "history" in item else {}
+        try:
+            history = response.json()
+            soup = BeautifulSoup(history["body"], "lxml")
+            rows = soup.table.find_all("tr")
+        except:
+            self.logger.exception(f"Unable to parse history lookup. {item['url']}")
+            return item
+        for row in rows:
+            try:
+                if not "id" in row.attrs:
+                    continue
+                columns = row.find_all("td")
+                change_id = columns[0].text.replace(".", "").strip()
+
+                if "deleted" in row.text:
+                    change_author = "deleted"
+                    change_author_href = False
+                else:
+                    change_author = columns[4].text.strip()
+                    change_author_href = columns[4].span.a["href"].strip()
+
+                change_date = columns[5].text.strip()
+                change_comment = columns[6].text
+                changes[change_id] = {
+                    "author": change_author,
+                    "author_href": change_author_href,
+                    "date": change_date,
+                    "comment": change_comment,
+                }
+            except:
+                self.logger.exception("Could not process row.")
+                self.logger.error(row)
+
+            item["history"] = changes
+            # The "0" change is the first revision, and the last one that shows up.
+            # If we have it then we're done.
+            if "0" in changes:
+                return item
+
+        next_page = history_page + 1
+        if next_page > MAX_HISTORY_PAGES:
+            self.logger.warning(f"Failed to retrieve complete history for {item['url']}")
+            return item
+
+        return self.get_history_request(page_id, history_page + 1, item)
+
+    def get_history_request(self, page_id, history_page, item):
+        return scrapy.http.FormRequest(
+            url=f"https://{self.domain}/ajax-module-connector.php",
+            method="POST",
+            formdata={
+                "wikidot_token7": MAIN_TOKEN,
+                "page_id": str(page_id),
+                "moduleName": "history/PageRevisionListModule",
+                "page": str(history_page),
+                "perpage": str(99999),
+            },
+            cookies={"wikidot_token7": MAIN_TOKEN},
+            callback=self.parse_history,
+            cb_kwargs={
+                "item": item,
+                "history_page": history_page,
+            },
+        )
+
+    def get_page_id(self, response):
+        return re.search(r"WIKIREQUEST\.info\.pageId\s+=\s+(\d+);", response.text)[1]
+
+
+class ScpSpider(CrawlSpider, HistoryMixin):
     name = "scp"
+
+    allowed_domains = [DOMAIN]
+
+    domain = DOMAIN
 
     start_urls = [
         f"http://{DOMAIN}/",
         f"http://{DOMAIN}/system:page-tags/tag/scp",
     ]
-
-    allowed_domains = [DOMAIN]
-
-    domain = DOMAIN
 
     rules = (
         Rule(LinkExtractor(allow=[r"scp-series(?:-\d*)?", "scp-ex"])),
@@ -32,27 +109,15 @@ class ScpSpider(CrawlSpider):
         Rule(LinkExtractor(allow=[r".*-proposal.*"]), callback="parse_item"),
     )
 
+    # rules = (Rule(LinkExtractor(allow=[r"scp-\d{3,}(?:-[\w|\d]+)*"]), callback="parse_item"),)
+    # start_urls = [f"https://scp-wiki.wikidot.com/scp-3318"]
+
     def validate(self, tags):
         if "scp" not in tags:
             return False
         if "tale" in tags:
             return False
         return True
-
-    # async def parse_item(self, response):
-    #     self.logger.debug("Reviewing Potential SCP Item page: %s", response.url)
-    #     content = response.css("#page-content").get()
-    #     tags = response.css(".page-tags a::text").getall()
-    #     if not content or not tags:
-    #         return False
-    #     if not self.validate(tags):
-    #         return False
-
-    #     request = scrapy.Request('http://www.example.com/index.html',
-    #                             callback=self.parse_page2,
-    #                             cb_kwargs={'item_page_response':response})
-    #     request.cb_kwargs['foo'] = 'bar'  # add more arguments for the callback
-    #     yield request
 
     def parse_item(self, response):
         self.logger.debug("Reviewing Potential SCP Item page: %s", response.url)
@@ -71,10 +136,7 @@ class ScpSpider(CrawlSpider):
         item["url"] = response.url
         item["link"] = response.url.replace(f"http://{self.domain}", "").replace(f"https://{self.domain}", "")
         item["tags"] = tags
-        try:
-            item["history"] = self.get_history(response)
-        except:
-            item["history"] = {}
+        item["page_id"] = self.get_page_id(response)
         item["scp"] = self.get_scp_identifier(item).upper()
         item["scp_number"] = self.get_scp_number(item)
         item["series"] = self.get_series(item)
@@ -87,84 +149,7 @@ class ScpSpider(CrawlSpider):
 
         item["raw_content"] = str(clean_content_soup(content_soup))
 
-        return item
-
-    def get_history(self, response):
-        # The token has to be in the cookie *and* the request itself.
-        token = self.get_token(response)
-        page_id = self.get_page_id(response)
-        changes = {}
-
-        if not page_id:
-            self.logger.error(f"Unable to get history due to lack of page_id: {response.url}")
-            return False
-
-        if not token:
-            self.logger.error(f"Unable to get history due to lack of token: {response.url}")
-            return False
-
-        for i in range(1, 5):
-            history_response = requests.post(
-                f"https://{self.domain}/ajax-module-connector.php",
-                data={
-                    "wikidot_token7": token,
-                    "page_id": page_id,
-                    "moduleName": "history/PageRevisionListModule",
-                    "callbackindex": "2",
-                    "options": '{"all":true}',
-                    "page": i,
-                    "perpage": 20,
-                },
-                cookies={"wikidot_token7": token},
-            )
-            try:
-                history = history_response.json()
-                soup = BeautifulSoup(history["body"], "lxml")
-                rows = soup.table.find_all("tr")
-            except:
-                self.logger.error(f"Unable to parse history lookup. {response.url}")
-                return False
-            for row in rows:
-                try:
-                    if not "id" in row.attrs:
-                        continue
-                    columns = row.find_all("td")
-                    change_id = columns[0].text.replace(".", "").strip()
-                    change_author = columns[4].text.strip()
-                    change_author_href = columns[4].span.a["href"].strip()
-                    change_date = columns[5].text.strip()
-                    changes[change_id] = {
-                        "author": change_author,
-                        "author_href": change_author_href,
-                        "date": change_date,
-                    }
-                except:
-                    pass
-
-            # The "0" change is the first revision, and the last one that shows up.
-            # If we have it then we're done.
-            if "0" in changes:
-                break
-
-        return changes
-
-    def get_page_id(self, response):
-        return re.search(r"WIKIREQUEST\.info\.pageId\s+=\s+(\d+);", response.text)[1]
-
-    def get_token(self, response):
-        for raw_cookie in response.headers.getlist("Set-Cookie"):
-            split_cookie = raw_cookie.decode("utf-8").split(";")[0].split("=")
-            if split_cookie[0] == "wikidot_token7":
-                return split_cookie[1]
-
-        # Unable to get token from initial request, so we send another.
-        # This should happen very, very rarely (generally only with new threads).
-        new_response = requests.get(response.url)
-        for cookie in new_response.cookies:
-            if cookie.name == "wikidot_token7":
-                return cookie.value
-
-        return False
+        return self.get_history_request(item["page_id"], 1, item)
 
     def get_scp_identifier(self, item):
         try:
@@ -215,7 +200,7 @@ class ScpTitleSpider(CrawlSpider):
     rules = (Rule(LinkExtractor(allow=[r"scp-series(?:-\d*)?", "scp-ex"]), callback="parse_titles"),)
 
     def parse_titles(self, response):
-        self.logger.warning("Reviewing SCP Index page: %s", response.url)
+        self.logger.info("Reviewing SCP Index page: %s", response.url)
         listings = response.css(".content-panel > ul > li")
         for listing in listings:
             try:
@@ -247,9 +232,10 @@ class ScpTitleSpider(CrawlSpider):
                 yield item
             except:
                 self.logger.exception("Failed to process line.")
+                self.logger.error(listing)
 
 
-class ScpTaleSpider(CrawlSpider):
+class ScpTaleSpider(CrawlSpider, HistoryMixin):
     name = "scp_tales"
 
     start_urls = [
@@ -287,9 +273,10 @@ class ScpTaleSpider(CrawlSpider):
         item["title"] = response.css("title::text").get()
         item["url"] = response.url
         item["tags"] = tags
+        item["page_id"] = self.get_page_id(response)
         item["rating"] = get_rating(response)
         item["raw_content"] = str(clean_content_soup(content_soup))
-        return item
+        return self.get_history_request(item["page_id"], 1, item)
 
 
 class ScpIntSpider(ScpSpider):
@@ -340,7 +327,7 @@ class ScpIntTaleSpider(ScpTaleSpider):
     allowed_domains = [INT_DOMAIN]
 
 
-class GoiSpider(CrawlSpider):
+class GoiSpider(CrawlSpider, HistoryMixin):
     name = "goi"
 
     start_urls = [
@@ -378,9 +365,10 @@ class GoiSpider(CrawlSpider):
         item["title"] = response.css("title::text").get()
         item["url"] = response.url
         item["tags"] = tags
+        item["page_id"] = self.get_page_id(response)
         item["rating"] = get_rating(response)
         item["raw_content"] = str(clean_content_soup(content_soup))
-        return item
+        return self.get_history_request(item["page_id"], 1, item)
 
 
 def get_rating(response):

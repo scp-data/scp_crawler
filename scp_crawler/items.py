@@ -1,36 +1,32 @@
 import scrapy
 
 
-class ScpTitle(scrapy.Item):
+class WikiPage(scrapy.Item):
     title = scrapy.Field()
-    scp = scrapy.Field()
-    link = scrapy.Field()
-
-
-class ScpItem(scrapy.Item):
     url = scrapy.Field()
-    link = scrapy.Field()
-    title = scrapy.Field()
+    page_id = scrapy.Field()
     rating = scrapy.Field()
     tags = scrapy.Field()
-    scp = scrapy.Field()
-    scp_number = scrapy.Field()
-    series = scrapy.Field()
     history = scrapy.Field()
     raw_content = scrapy.Field()
 
 
-class ScpTale(scrapy.Item):
-    url = scrapy.Field()
-    title = scrapy.Field()
-    rating = scrapy.Field()
-    tags = scrapy.Field()
-    raw_content = scrapy.Field()
+class ScpItem(WikiPage):
+    link = scrapy.Field()
+    scp = scrapy.Field()
+    scp_number = scrapy.Field()
+    series = scrapy.Field()
 
 
-class ScpGoi(scrapy.Item):
-    url = scrapy.Field()
+class ScpTale(WikiPage):
+    pass
+
+
+class ScpGoi(WikiPage):
+    pass
+
+
+class ScpTitle(scrapy.Item):
     title = scrapy.Field()
-    rating = scrapy.Field()
-    tags = scrapy.Field()
-    raw_content = scrapy.Field()
+    scp = scrapy.Field()
+    link = scrapy.Field()

@@ -23,18 +23,19 @@ USER_AGENT = "scp_crawler (https://github.com/tedivm/scp_crawler)"
 ROBOTSTXT_OBEY = True
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
-# CONCURRENT_REQUESTS = 32
+CONCURRENT_REQUESTS = 16
 
 # Configure a delay for requests for the same website (default: 0)
 # See https://docs.scrapy.org/en/latest/topics/settings.html#download-delay
 # See also autothrottle settings and docs
 # DOWNLOAD_DELAY = 3
+
 # The download delay setting will honor only one of:
 CONCURRENT_REQUESTS_PER_DOMAIN = 8
 # CONCURRENT_REQUESTS_PER_IP = 16
 
 # Disable cookies (enabled by default)
-# COOKIES_ENABLED = False
+COOKIES_ENABLED = True
 
 # Disable Telnet Console (enabled by default)
 # TELNETCONSOLE_ENABLED = False
@@ -53,9 +54,11 @@ CONCURRENT_REQUESTS_PER_DOMAIN = 8
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
-# DOWNLOADER_MIDDLEWARES = {
-#    'scp_crawler.middlewares.ScpCrawlerDownloaderMiddleware': 543,
-# }
+DOWNLOADER_MIDDLEWARES = {
+    # 'scp_crawler.middlewares.ScpCrawlerDownloaderMiddleware': 543,
+    "scrapy.downloadermiddlewares.cookies.CookiesMiddleware": 100,
+    "scrapy.downloadermiddlewares.httpcache.HttpCacheMiddleware": 900,
+}
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
@@ -73,7 +76,7 @@ CONCURRENT_REQUESTS_PER_DOMAIN = 8
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
 AUTOTHROTTLE_ENABLED = True
 # The initial download delay
-AUTOTHROTTLE_START_DELAY = 1
+AUTOTHROTTLE_START_DELAY = 0
 # The maximum download delay to be set in case of high latencies
 AUTOTHROTTLE_MAX_DELAY = 60
 # The average number of requests Scrapy should be sending in parallel to
@@ -93,8 +96,3 @@ AUTOTHROTTLE_TARGET_CONCURRENCY = CONCURRENT_REQUESTS_PER_DOMAIN
 DIRECTORY = "data"
 FEED_FORMAT = "json"
 FEED_URL = f"{DIRECTORY}/%(name)s.json"
-
-DOWNLOADER_MIDDLEWARES = {
-    "scrapy.downloadermiddlewares.cookies.CookiesMiddleware": 100,
-    "scrapy.downloadermiddlewares.httpcache.HttpCacheMiddleware": 900,
-}

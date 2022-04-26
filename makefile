@@ -45,3 +45,6 @@ goi: data/goi.json
 data/goi.json: .venv
 	python -m scrapy crawl goi -o data/goi.json
 
+
+clean_data:
+	rm -Rf data/*
