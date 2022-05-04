@@ -3,6 +3,7 @@ import os
 from datetime import date, datetime
 
 from bs4 import BeautifulSoup
+from tqdm import tqdm
 
 cwd = os.getcwd()
 
@@ -29,9 +30,12 @@ def to_file(obj, path):
 title_list = from_file(cwd + "/data/scp_titles.json")
 title_index = {title["link"]: title["title"] for title in title_list}
 
+print("Processing item list.")
+
 item_list = from_file(cwd + "/data/scp_items.json")
 items = {}
-for item in item_list:
+series_items = {}
+for item in tqdm(item_list):
     if item["link"] in title_index:
         item["title"] = title_index[item["link"]]
     else:
@@ -54,11 +58,19 @@ for item in item_list:
 
     items[item["scp"]] = item
 
-print("Saving indexed content.")
-to_file(items, cwd + "/data/scp_indexed.json")
+    if item["series"] not in series_items:
+        series_items[item["series"]] = {}
+    series_items[item["series"]][item["scp"]] = item
+
+
+print("Saving Items")
+for series, series_items in series_items.items():
+    print(f"Saving series {series}.")
+    to_file(series_items, f"{cwd}/data/scp_{series}_content.json")
+
 
 for item_id in items:
     del items[item_id]["raw_content"]
 
 print("Saving metadata only.")
-to_file(items, cwd + "/data/scp_metadata.json")
+to_file(items, cwd + "/data/scp_item_metadata.json")
