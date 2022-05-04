@@ -14,6 +14,8 @@ clean:
 	python -m venv .venv
 	source ./venv/bin/activate && python -m pip install .
 
+crawl: scp scp_int goi
+
 scp: data/scp_titles.json data/scp_items.json data/scp_tales.json items_postprocess
 
 data/scp_titles.json: .venv

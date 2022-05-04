@@ -16,7 +16,7 @@ MAX_HISTORY_PAGES = 5
 MAIN_TOKEN = "123456"
 
 
-class HistoryMixin:
+class WikiMixin:
     def parse_history(self, response, item, history_page=1):
         self.logger.info(f"Reviewing Page {item['page_id']} history")
 
@@ -90,8 +90,22 @@ class HistoryMixin:
     def get_page_id(self, response):
         return re.search(r"WIKIREQUEST\.info\.pageId\s+=\s+(\d+);", response.text)[1]
 
+    def follow_splash_redirects(self, response, tags):
+        if not "splash" in tags:
+            return False
 
-class ScpSpider(CrawlSpider, HistoryMixin):
+        if "adult" in tags:
+            # Test Case - https://scp-wiki.wikidot.com/scp-597
+            redirect_path = response.css("#u-adult-warning a").attrib["href"]
+            return scrapy.http.Request(
+                url=f"https://{self.domain}{redirect_path}",
+                callback=self.parse_item,
+            )
+
+        return False
+
+
+class ScpSpider(CrawlSpider, WikiMixin):
     name = "scp"
 
     allowed_domains = [DOMAIN]
@@ -125,9 +139,14 @@ class ScpSpider(CrawlSpider, HistoryMixin):
         tags = response.css(".page-tags a::text").getall()
         if not content or not tags:
             return False
+
+        redirect = self.follow_splash_redirects(response, tags)
+        if redirect:
+            return redirect
+
         if not self.validate(tags):
             return False
-
+        # u-adult-warning > p:nth-child(3) > a:nth-child(1)
         self.logger.info("Processing SCP Item page: %s", response.url)
         content_soup = BeautifulSoup(content, "lxml")
 
@@ -235,7 +254,7 @@ class ScpTitleSpider(CrawlSpider):
                 self.logger.error(listing)
 
 
-class ScpTaleSpider(CrawlSpider, HistoryMixin):
+class ScpTaleSpider(CrawlSpider, WikiMixin):
     name = "scp_tales"
 
     start_urls = [
@@ -246,14 +265,7 @@ class ScpTaleSpider(CrawlSpider, HistoryMixin):
     allowed_domains = [DOMAIN]
 
     rules = (
-        Rule(
-            LinkExtractor(
-                allow=[
-                    re.escape("tales-by-title"),
-                    re.escape("system:page-tags/tag/tale"),
-                ]
-            )
-        ),
+        Rule(LinkExtractor(allow=[re.escape("tales-by-title"), re.escape("system:page-tags/tag/tale")])),
         Rule(LinkExtractor(allow=[r".*"]), callback="parse_tale"),
     )
 
@@ -263,6 +275,11 @@ class ScpTaleSpider(CrawlSpider, HistoryMixin):
         tags = response.css(".page-tags a::text").getall()
         if not content or not tags:
             return False
+
+        redirect = self.follow_splash_redirects(response, tags)
+        if redirect:
+            return redirect
+
         if "tale" not in tags:
             return False
 
@@ -327,7 +344,7 @@ class ScpIntTaleSpider(ScpTaleSpider):
     allowed_domains = [INT_DOMAIN]
 
 
-class GoiSpider(CrawlSpider, HistoryMixin):
+class GoiSpider(CrawlSpider, WikiMixin):
     name = "goi"
 
     start_urls = [
@@ -338,14 +355,7 @@ class GoiSpider(CrawlSpider, HistoryMixin):
     allowed_domains = [DOMAIN]
 
     rules = (
-        Rule(
-            LinkExtractor(
-                allow=[
-                    re.escape("tales-by-title"),
-                    re.escape("system:page-tags/tag/goi-format"),
-                ]
-            )
-        ),
+        Rule(LinkExtractor(allow=[re.escape("tales-by-title"), re.escape("system:page-tags/tag/goi-format")])),
         Rule(LinkExtractor(allow=[r".*"]), callback="parse_tale"),
     )
 
@@ -355,6 +365,9 @@ class GoiSpider(CrawlSpider, HistoryMixin):
         tags = response.css(".page-tags a::text").getall()
         if not content or not tags:
             return False
+        redirect = self.follow_splash_redirects(response, tags)
+        if redirect:
+            return redirect
         if "goi-format" not in tags:
             return False
 
