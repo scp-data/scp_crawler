@@ -12,7 +12,7 @@ clean:
 
 .venv:
 	python -m venv .venv
-	source ./venv/bin/activate && python -m pip install .
+	$(PYTHON_VENV) python -m pip install .
 
 crawl: scp scp_int goi
 
