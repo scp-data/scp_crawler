@@ -30,7 +30,7 @@ data/scp_hubs.json: .venv
 	$(PYTHON_VENV) python -m scrapy crawl scp_hubs -o data/scp_hubs.json
 
 data/scp_tales.json: .venv
-	python -m scrapy crawl scp_tales -o data/scp_tales.json
+	$(PYTHON_VENV) python -m scrapy crawl scp_tales -o data/scp_tales.json
 
 scp_postprocess: scp_crawl
 	$(PYTHON_VENV) python ./scp_crawler/postprocessing.py
@@ -39,18 +39,18 @@ scp_postprocess: scp_crawl
 scp_int: data/scp_int_titles.json data/scp_int_items.json data/scp_int_tales.json
 
 data/scp_int_titles.json: .venv
-	python -m scrapy crawl scp_int_titles -o data/scp_int_titles.json
+	$(PYTHON_VENV) python -m scrapy crawl scp_int_titles -o data/scp_int_titles.json
 
 data/scp_int_items.json: .venv
-	python -m scrapy crawl scp_int -o data/scp_int_items.json
+	$(PYTHON_VENV) python -m scrapy crawl scp_int -o data/scp_int_items.json
 
 data/scp_int_tales.json: .venv
-	python -m scrapy crawl scp_int_tales -o data/scp_int_tales.json
+	$(PYTHON_VENV) python -m scrapy crawl scp_int_tales -o data/scp_int_tales.json
 
 goi: data/goi.json
 
 data/goi.json: .venv
-	python -m scrapy crawl goi -o data/goi.json
+	$(PYTHON_VENV) python -m scrapy crawl goi -o data/goi.json
 
 
 clean_data:
