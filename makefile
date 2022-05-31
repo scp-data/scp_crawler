@@ -1,4 +1,4 @@
-SHELL := "/bin/bash"
+SHELL=/bin/bash
 PYTHON_VENV = source .venv/bin/activate &&
 
 data: scp scp_int goi
