@@ -16,20 +16,25 @@ clean:
 
 crawl: scp scp_int goi
 
-scp: data/scp_titles.json data/scp_items.json data/scp_tales.json items_postprocess
+scp: scp_crawl scp_postprocess
+
+scp_crawl: data/scp_titles.json data/scp_hubs.json data/scp_items.json data/scp_tales.json
 
 data/scp_titles.json: .venv
-	python -m scrapy crawl scp_titles -o data/scp_titles.json
+	$(PYTHON_VENV) python -m scrapy crawl scp_titles -o data/scp_titles.json
 
 data/scp_items.json: .venv
 	$(PYTHON_VENV) python -m scrapy crawl scp -o data/scp_items.json
 
-items_postprocess: data/scp_titles.json data/scp_items.json
-	$(PYTHON_VENV) python ./scp_crawler/postprocessing.py
-
+data/scp_hubs.json: .venv
+	$(PYTHON_VENV) python -m scrapy crawl scp_hubs -o data/scp_hubs.json
 
 data/scp_tales.json: .venv
 	python -m scrapy crawl scp_tales -o data/scp_tales.json
+
+scp_postprocess: scp_crawl
+	$(PYTHON_VENV) python ./scp_crawler/postprocessing.py
+
 
 scp_int: data/scp_int_titles.json data/scp_int_items.json data/scp_int_tales.json
 

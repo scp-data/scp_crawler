@@ -13,7 +13,7 @@ make install
 Then to run all of the spiders and create a full data dump of the SCP Wiki and SCP International Hub in the `data` directory:
 
 ```bash
-make data
+make crawl
 ```
 
 ## Custom Crawl with scrapy cli
@@ -32,7 +32,7 @@ To crawl the International Hub for SCP Items and save to a custom location:
 scrapy crawl scp_int -o scp_international_items.json
 ```
 
-## Content Structure
+## Raw Content Structure
 
 There are two types of content downloaded- SCP Items and SCP Tales.
 
@@ -42,6 +42,7 @@ All content (both SCP Items and Tales) contain the following:
 * Title
 * Rating
 * Tags
+* History- revision ID, date, author, and comment.
 * Raw Content (the HTML for the story or item, without the site navigation and other boilerplate)
 
 In addition the SCP Items include:
@@ -54,16 +55,16 @@ In addition the SCP Items include:
   * Generic International (from the main site)
   * Specific Nationality Tag (from the international hub)
 
-
-## Generated Files
+### Generated Files
 
 The crawler generates a series of json files containing an array of objects representing each crawled item.
 
 | File                | Source        | Type  | Target  |
-|---------------------|---------------|-------|---------|
+| ------------------- | ------------- | ----- | ------- |
 | goi.json            | Main          | Tale  | goi     |
 | scp_items.json      | Main          | Item  | scp     |
 | scp_titles.json     | Main          | Title | scp     |
+| scp_hubs.json       | Main          | Hub   | scp     |
 | scp_tales.json      | Main          | Tale  | scp     |
 | scp_int.json        | International | Item  | scp_int |
 | scp_int_titles.json | International | Title | scp_int |
@@ -72,6 +73,10 @@ The crawler generates a series of json files containing an array of objects repr
 Running `make TARGET` (such as `make goi` or `make scp`) will generate the site specific files. Running `make data` will fill in any missing files.
 
 To regenerate all files run `make fresh`.
+
+## Post Processed Data
+
+The postproc system takes the Titles, Hubs, Items, and Tales and uses them to generate a comprehensive set of objects. It combines and cross references data and expands on the data already there.
 
 
 ## Content Licensing

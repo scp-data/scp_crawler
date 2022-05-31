@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 from scrapy.linkextractors import LinkExtractor
 from scrapy.spiders import CrawlSpider, Rule
 
-from ..items import ScpGoi, ScpItem, ScpTale, ScpTitle
+from ..items import ScpGoi, ScpHub, ScpItem, ScpTale, ScpTitle
 
 DOMAIN = "scp-wiki.wikidot.com"
 INT_DOMAIN = "scp-int.wikidot.com"
@@ -17,6 +17,13 @@ MAIN_TOKEN = "123456"
 
 
 class WikiMixin:
+
+    skip_pages = [
+        "",
+        "/licensing-guide",
+        "/licensing-master-list",
+    ]
+
     def parse_history(self, response, item, history_page=1):
         self.logger.info(f"Reviewing Page {item['page_id']} history")
 
@@ -90,7 +97,34 @@ class WikiMixin:
     def get_page_id(self, response):
         return re.search(r"WIKIREQUEST\.info\.pageId\s+=\s+(\d+);", response.text)[1]
 
-    def follow_splash_redirects(self, response, tags):
+    def get_tags(self, response):
+        return response.css(".page-tags a::text").getall()
+
+    def get_content(self, response):
+        return response.css("#page-content").get()
+
+    def get_title(self, response):
+        title = response.css("title::text").get()
+        # @TODO - expand to include international wikis
+        if title.endswith(" - SCP Foundation"):
+            title = title.replace(" - SCP Foundation", "")
+        return title
+
+    def get_simple_link(self, url):
+        return url.replace(f"http://{self.domain}/", "").replace(f"https://{self.domain}/", "")
+
+    def get_content_references(self, response):
+        current_link = self.get_simple_link(response.url)
+        extractor = LinkExtractor(allow_domains=self.allowed_domains, restrict_css="#page-content")
+        references = []
+        for x in extractor.extract_links(response):
+            link = self.get_simple_link(x.url)
+            if link in self.skip_pages or link == current_link:
+                continue
+            references.append(link)
+        return references
+
+    def follow_splash_redirects(self, response, tags, callback):
         if not "splash" in tags:
             return False
 
@@ -99,7 +133,8 @@ class WikiMixin:
             redirect_path = response.css("#u-adult-warning a").attrib["href"]
             return scrapy.http.Request(
                 url=f"https://{self.domain}{redirect_path}",
-                callback=self.parse_item,
+                callback=callback,
+                cb_kwargs={"original_link": self.get_simple_link(response.url)},
             )
 
         return False
@@ -133,27 +168,28 @@ class ScpSpider(CrawlSpider, WikiMixin):
             return False
         return True
 
-    def parse_item(self, response):
+    def parse_item(self, response, original_link=None):
         self.logger.debug("Reviewing Potential SCP Item page: %s", response.url)
-        content = response.css("#page-content").get()
-        tags = response.css(".page-tags a::text").getall()
+        content = self.get_content(response)
+        tags = self.get_tags(response)
+
         if not content or not tags:
             return False
 
-        redirect = self.follow_splash_redirects(response, tags)
+        redirect = self.follow_splash_redirects(response, tags, self.parse_item)
         if redirect:
             return redirect
 
         if not self.validate(tags):
             return False
-        # u-adult-warning > p:nth-child(3) > a:nth-child(1)
+
         self.logger.info("Processing SCP Item page: %s", response.url)
         content_soup = BeautifulSoup(content, "lxml")
 
         item = ScpItem()
-        item["title"] = response.css("title::text").get()
+        item["title"] = self.get_title(response)
         item["url"] = response.url
-        item["link"] = response.url.replace(f"http://{self.domain}", "").replace(f"https://{self.domain}", "")
+        item["link"] = original_link if original_link else self.get_simple_link(response.url)
         item["tags"] = tags
         item["page_id"] = self.get_page_id(response)
         item["scp"] = self.get_scp_identifier(item).upper()
@@ -167,6 +203,7 @@ class ScpSpider(CrawlSpider, WikiMixin):
             item["rating"] = get_rating(response)
 
         item["raw_content"] = str(clean_content_soup(content_soup))
+        item["references"] = self.get_content_references(response)
 
         return self.get_history_request(item["page_id"], 1, item)
 
@@ -202,7 +239,7 @@ class ScpSpider(CrawlSpider, WikiMixin):
             return "international"
 
         number = self.get_scp_number(item)
-        for x in range(1, 10):
+        for x in range(1, 20):
             if number < x * 1000:
                 return f"series-{x}"
 
@@ -215,6 +252,8 @@ class ScpTitleSpider(CrawlSpider):
     start_urls = [f"http://{DOMAIN}/"]
 
     allowed_domains = [DOMAIN]
+
+    domain = DOMAIN
 
     rules = (Rule(LinkExtractor(allow=[r"scp-series(?:-\d*)?", "scp-ex"]), callback="parse_titles"),)
 
@@ -264,19 +303,21 @@ class ScpTaleSpider(CrawlSpider, WikiMixin):
 
     allowed_domains = [DOMAIN]
 
+    domain = DOMAIN
+
     rules = (
         Rule(LinkExtractor(allow=[re.escape("tales-by-title"), re.escape("system:page-tags/tag/tale")])),
         Rule(LinkExtractor(allow=[r".*"]), callback="parse_tale"),
     )
 
-    def parse_tale(self, response):
+    def parse_tale(self, response, original_link=None):
         self.logger.debug("Reviewing Potential SCP Tale page: %s", response.url)
         content = response.css("#page-content").get()
         tags = response.css(".page-tags a::text").getall()
         if not content or not tags:
             return False
 
-        redirect = self.follow_splash_redirects(response, tags)
+        redirect = self.follow_splash_redirects(response, tags, self.parse_tale)
         if redirect:
             return redirect
 
@@ -289,10 +330,72 @@ class ScpTaleSpider(CrawlSpider, WikiMixin):
         item = ScpTale()
         item["title"] = response.css("title::text").get()
         item["url"] = response.url
+        item["link"] = original_link if original_link else self.get_simple_link(response.url)
         item["tags"] = tags
         item["page_id"] = self.get_page_id(response)
         item["rating"] = get_rating(response)
         item["raw_content"] = str(clean_content_soup(content_soup))
+        item["references"] = self.get_content_references(response)
+        return self.get_history_request(item["page_id"], 1, item)
+
+
+class ScpHubSpider(CrawlSpider, WikiMixin):
+    name = "scp_hubs"
+
+    start_urls = [f"https://{DOMAIN}/system:page-tags/tag/hub"]
+
+    allowed_domains = [DOMAIN]
+
+    domain = DOMAIN
+
+    rules = (
+        Rule(
+            # Crawl everything except tag pages, which slam the system and give 503s.
+            LinkExtractor(allow=[r".*"], deny=[r"system:page-tags.*", re.escape("tag-search")]),
+            callback="parse_hub",
+        ),
+    )
+
+    excluded_hubs = [
+        "/new-pages-feed",
+        "/shortest-pages-this-month",
+        "/top-rated-pages-this-month",
+        "/user-curated-lists",
+        "/curated-tale-series",
+        "/foundation-tales",
+        "/groups-of-interest",
+        "/canon-hub",
+        "/young-and-under-30",
+        "/tales-by-title",
+        "/tales-by-author",
+    ]
+
+    def parse_hub(self, response):
+        tags = self.get_tags(response)
+        if not "hub" in tags:
+            return False
+        link = self.get_simple_link(response.url)
+        if link in self.excluded_hubs:
+            self.logger.debug(f"Skipping hub at {link}")
+            return False
+        if link.startswith("/scp-series"):
+            return False
+
+        self.logger.info("Reviewing Potential SCP Hub page: %s", response.url)
+
+        content = self.get_content(response)
+        if not content:
+            return False
+
+        item = ScpHub()
+        item["title"] = self.get_title(response)
+        item["url"] = response.url
+        item["link"] = link
+        item["tags"] = tags
+        item["page_id"] = self.get_page_id(response)
+        item["references"] = self.get_content_references(response)
+        item["raw_content"] = content
+
         return self.get_history_request(item["page_id"], 1, item)
 
 
@@ -354,18 +457,20 @@ class GoiSpider(CrawlSpider, WikiMixin):
 
     allowed_domains = [DOMAIN]
 
+    domain = DOMAIN
+
     rules = (
         Rule(LinkExtractor(allow=[re.escape("tales-by-title"), re.escape("system:page-tags/tag/goi-format")])),
         Rule(LinkExtractor(allow=[r".*"]), callback="parse_tale"),
     )
 
-    def parse_tale(self, response):
+    def parse_tale(self, response, original_link=None):
         self.logger.debug("Reviewing Potential SCP GOI page: %s", response.url)
         content = response.css("#page-content").get()
         tags = response.css(".page-tags a::text").getall()
         if not content or not tags:
             return False
-        redirect = self.follow_splash_redirects(response, tags)
+        redirect = self.follow_splash_redirects(response, tags, self.parse_tale)
         if redirect:
             return redirect
         if "goi-format" not in tags:
@@ -377,6 +482,7 @@ class GoiSpider(CrawlSpider, WikiMixin):
         item = ScpGoi()
         item["title"] = response.css("title::text").get()
         item["url"] = response.url
+        item["link"] = original_link if original_link else self.get_simple_link(response.url)
         item["tags"] = tags
         item["page_id"] = self.get_page_id(response)
         item["rating"] = get_rating(response)
