@@ -157,8 +157,12 @@ def run_postproc_tales():
             tale_years[tale["year"]] = {}
         tale_years[tale["year"]][tale["link"]] = tale
 
+    year_index = {}
     for year in tale_years:
-        to_file(tale_years[year], processed_path / f"content_{year}.json")
+        filename = processed_path / f"content_{year}.json"
+        year_index[year] = filename
+        to_file(tale_years[year], filename)
+    to_file(year_index, processed_path / f"content_index.json")
 
     for tale_id in tales:
         del tales[tale_id]["raw_content"]
