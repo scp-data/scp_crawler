@@ -7,5 +7,3 @@
 - International Wiki Postproc
 
 - Themes
-
-- Article Source (wiki format)

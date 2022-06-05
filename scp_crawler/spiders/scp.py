@@ -35,7 +35,7 @@ class WikiMixin:
             rows = soup.table.find_all("tr")
         except:
             self.logger.exception(f"Unable to parse history lookup. {item['url']}")
-            return item
+            return self.get_page_source_request(page_id, item)
         for row in rows:
             try:
                 if not "id" in row.attrs:
@@ -66,16 +66,18 @@ class WikiMixin:
             # The "0" change is the first revision, and the last one that shows up.
             # If we have it then we're done.
             if "0" in changes:
-                return item
+                return self.get_page_source_request(page_id, item)
 
         next_page = history_page + 1
         if next_page > MAX_HISTORY_PAGES:
             self.logger.warning(f"Failed to retrieve complete history for {item['url']}")
-            return item
+            return self.get_page_source_request(page_id, item)
 
         return self.get_history_request(page_id, history_page + 1, item)
 
     def get_history_request(self, page_id, history_page, item):
+        # return self.get_page_source_request(page_id=page_id, item=item)
+
         return scrapy.http.FormRequest(
             url=f"https://{self.domain}/ajax-module-connector.php",
             method="POST",
@@ -93,6 +95,39 @@ class WikiMixin:
                 "history_page": history_page,
             },
         )
+
+    def get_page_source_request(self, page_id, item):
+        # Getting source in preprocessing phase
+        return item
+        return scrapy.http.FormRequest(
+            url=f"https://{self.domain}/ajax-module-connector.php",
+            method="POST",
+            formdata={
+                "wikidot_token7": MAIN_TOKEN,
+                "page_id": str(page_id),
+                "moduleName": "viewsource/ViewSourceModule",
+            },
+            cookies={"wikidot_token7": MAIN_TOKEN},
+            callback=self.parse_source,
+            errback=self.err_callback_page_source,
+            cb_kwargs={
+                "item": item,
+            },
+        )
+
+    def err_callback_page_source(self, failure):
+        self.logger.error(failure)
+        if "item" in failure.request.cb_kwargs:
+            return failure.request.cb_kwargs["item"]
+
+    def parse_source(self, response, item):
+        self.logger.info(f"Reviewing Page {item['page_id']} wiki source")
+        page_response = response.json()
+        soup = BeautifulSoup(page_response["body"], "lxml")
+        item["raw_source"] = "".join(str(x) for x in soup.find("div", {"class": "page-source"}).contents).replace(
+            "<br/>", ""
+        )
+        return item
 
     def get_page_id(self, response):
         return re.search(r"WIKIREQUEST\.info\.pageId\s+=\s+(\d+);", response.text)[1]
@@ -189,6 +224,7 @@ class ScpSpider(CrawlSpider, WikiMixin):
         item = ScpItem()
         item["title"] = self.get_title(response)
         item["url"] = response.url
+        item["domain"] = self.domain
         item["link"] = original_link if original_link else self.get_simple_link(response.url)
         item["tags"] = tags
         item["page_id"] = self.get_page_id(response)
@@ -330,6 +366,7 @@ class ScpTaleSpider(CrawlSpider, WikiMixin):
         item = ScpTale()
         item["title"] = response.css("title::text").get()
         item["url"] = response.url
+        item["domain"] = self.domain
         item["link"] = original_link if original_link else self.get_simple_link(response.url)
         item["tags"] = tags
         item["page_id"] = self.get_page_id(response)
@@ -390,6 +427,7 @@ class ScpHubSpider(CrawlSpider, WikiMixin):
         item = ScpHub()
         item["title"] = self.get_title(response)
         item["url"] = response.url
+        item["domain"] = self.domain
         item["link"] = link
         item["tags"] = tags
         item["page_id"] = self.get_page_id(response)
@@ -446,6 +484,8 @@ class ScpIntTaleSpider(ScpTaleSpider):
 
     allowed_domains = [INT_DOMAIN]
 
+    domain = INT_DOMAIN
+
 
 class GoiSpider(CrawlSpider, WikiMixin):
     name = "goi"
@@ -482,6 +522,7 @@ class GoiSpider(CrawlSpider, WikiMixin):
         item = ScpGoi()
         item["title"] = response.css("title::text").get()
         item["url"] = response.url
+        item["domain"] = self.domain
         item["link"] = original_link if original_link else self.get_simple_link(response.url)
         item["tags"] = tags
         item["page_id"] = self.get_page_id(response)

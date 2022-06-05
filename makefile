@@ -18,7 +18,7 @@ crawl: scp scp_int goi
 
 scp: scp_crawl scp_postprocess
 
-scp_crawl: data/scp_titles.json data/scp_hubs.json data/scp_items.json data/scp_tales.json
+scp_crawl: data/scp_titles.json data/scp_hubs.json data/scp_items.json data/scp_tales.json data/goi.json
 
 data/scp_titles.json: .venv
 	$(PYTHON_VENV) python -m scrapy crawl scp_titles -o data/scp_titles.json

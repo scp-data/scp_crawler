@@ -5,11 +5,13 @@ class WikiPage(scrapy.Item):
     title = scrapy.Field()
     link = scrapy.Field()
     url = scrapy.Field()
+    domain = scrapy.Field()
     page_id = scrapy.Field()
     rating = scrapy.Field()
     tags = scrapy.Field()
     history = scrapy.Field()
     raw_content = scrapy.Field()
+    raw_source = scrapy.Field()
     references = scrapy.Field()
 
 

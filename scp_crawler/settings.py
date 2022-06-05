@@ -23,7 +23,7 @@ USER_AGENT = "scp_crawler (https://github.com/tedivm/scp_crawler)"
 ROBOTSTXT_OBEY = True
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
-CONCURRENT_REQUESTS = 16
+CONCURRENT_REQUESTS = 8
 
 # Configure a delay for requests for the same website (default: 0)
 # See https://docs.scrapy.org/en/latest/topics/settings.html#download-delay
@@ -31,7 +31,7 @@ CONCURRENT_REQUESTS = 16
 # DOWNLOAD_DELAY = 3
 
 # The download delay setting will honor only one of:
-CONCURRENT_REQUESTS_PER_DOMAIN = 8
+CONCURRENT_REQUESTS_PER_DOMAIN = CONCURRENT_REQUESTS
 # CONCURRENT_REQUESTS_PER_IP = 16
 
 # Disable cookies (enabled by default)
@@ -96,3 +96,5 @@ AUTOTHROTTLE_TARGET_CONCURRENCY = CONCURRENT_REQUESTS_PER_DOMAIN
 DIRECTORY = "data"
 FEED_FORMAT = "json"
 FEED_URL = f"{DIRECTORY}/%(name)s.json"
+
+RETRY_TIMES = 20
