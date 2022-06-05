@@ -7,12 +7,15 @@ from datetime import date, datetime
 from pathlib import Path
 
 import httpx
+import typer
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 cwd = os.getcwd()
 
 MAIN_TOKEN = "123456"
+
+cli = typer.Typer()
 
 
 def json_serial(obj):
@@ -112,6 +115,7 @@ def get_hubs(link):
     return in_hubs
 
 
+@cli.command()
 def run_postproc_items():
     processed_path = Path(cwd + "/data/processed/items")
     os.makedirs(processed_path, exist_ok=True)
@@ -174,6 +178,7 @@ def run_postproc_items():
     to_file(items, processed_path / "index.json")
 
 
+@cli.command()
 def run_postproc_tales():
 
     processed_path = Path(cwd + "/data/processed/tales")
@@ -225,6 +230,7 @@ def run_postproc_tales():
     to_file(tales, processed_path / "index.json")
 
 
+@cli.command()
 def run_postproc_goi():
 
     processed_path = Path(cwd + "/data/processed/goi")
@@ -264,6 +270,4 @@ def run_postproc_goi():
 
 
 if __name__ == "__main__":
-    run_postproc_items()
-    run_postproc_tales()
-    run_postproc_goi()
+    cli()

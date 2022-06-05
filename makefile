@@ -1,9 +1,9 @@
 SHELL=/bin/bash
 PYTHON_VENV = source .venv/bin/activate &&
 
-data: scp scp_int goi
-
 install: .venv
+
+data: scp scp_int goi
 
 fresh: clean data
 
@@ -32,9 +32,21 @@ data/scp_hubs.json: .venv
 data/scp_tales.json: .venv
 	$(PYTHON_VENV) python -m scrapy crawl scp_tales -o data/scp_tales.json
 
-scp_postprocess: scp_crawl
-	$(PYTHON_VENV) python ./scp_crawler/postprocessing.py
+goi: data/goi.json
 
+data/goi.json: .venv
+	$(PYTHON_VENV) python -m scrapy crawl goi -o data/goi.json
+
+scp_postprocess: scp_crawl data/processed/goi data/processed/items data/processed/tales
+
+data/processed/goi: .venv
+	$(PYTHON_VENV) python -m scp_crawler.postprocessing run-postproc-goi
+
+data/processed/items: .venv
+	$(PYTHON_VENV) python -m scp_crawler.postprocessing run-postproc-items
+
+data/processed/tales: .venv
+	$(PYTHON_VENV) python -m scp_crawler.postprocessing run-postproc-tales
 
 scp_int: data/scp_int_titles.json data/scp_int_items.json data/scp_int_tales.json
 
@@ -46,11 +58,6 @@ data/scp_int_items.json: .venv
 
 data/scp_int_tales.json: .venv
 	$(PYTHON_VENV) python -m scrapy crawl scp_int_tales -o data/scp_int_tales.json
-
-goi: data/goi.json
-
-data/goi.json: .venv
-	$(PYTHON_VENV) python -m scrapy crawl goi -o data/goi.json
 
 
 clean_data:
