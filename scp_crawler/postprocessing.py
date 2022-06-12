@@ -74,11 +74,15 @@ def get_wiki_source(page_id, domain, attempts=5):
             return get_wiki_source(page_id, domain, attempts=attempts)
         return False
 
-    page_response = response.json()
-    soup = BeautifulSoup(page_response["body"], "lxml")
+    try:
+        page_response = response.json()
+        soup = BeautifulSoup(page_response["body"], "lxml")
+        raw_source = "".join(str(x) for x in soup.find("div", {"class": "page-source"}).contents)
+        return re.sub("<br\s*?/?\s*?>", "\n", html.unescape(raw_source), flags=re.IGNORECASE)
+    except:
+        print(f"Unable to pull body for wikisource from {page_id}")
+        return None
 
-    raw_source = "".join(str(x) for x in soup.find("div", {"class": "page-source"}).contents)
-    return re.sub("<br\s*?/?\s*?>", "\n", html.unescape(raw_source), flags=re.IGNORECASE)
 
 
 print("Processing Hub list.")
