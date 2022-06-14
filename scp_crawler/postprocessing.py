@@ -53,17 +53,17 @@ def process_history(history):
 
 
 def get_wiki_source(page_id, domain, attempts=5):
-    response = httpx.post(
-        f"https://{domain}/ajax-module-connector.php",
-        data={
-            "wikidot_token7": MAIN_TOKEN,
-            "page_id": str(page_id),
-            "moduleName": "viewsource/ViewSourceModule",
-        },
-        cookies={"wikidot_token7": MAIN_TOKEN},
-    )
 
     try:
+        response = httpx.post(
+            f"https://{domain}/ajax-module-connector.php",
+            data={
+                "wikidot_token7": MAIN_TOKEN,
+                "page_id": str(page_id),
+                "moduleName": "viewsource/ViewSourceModule",
+            },
+            cookies={"wikidot_token7": MAIN_TOKEN},
+        )
         response.raise_for_status()
     except:
         print(f"Failed to load source for {page_id}")
