@@ -343,7 +343,7 @@ class ScpTaleSpider(CrawlSpider, WikiMixin):
 
     rules = (
         Rule(LinkExtractor(allow=[re.escape("tales-by-title"), re.escape("system:page-tags/tag/tale")])),
-        Rule(LinkExtractor(deny=[r"system:.*", r".*:.*", re.escape("tag-search")]), callback="parse_tale"),
+        Rule(LinkExtractor(allow=[r".*"]), callback="parse_tale"),
     )
 
     def parse_tale(self, response, original_link=None):
