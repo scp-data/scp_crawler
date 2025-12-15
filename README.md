@@ -32,9 +32,15 @@ To crawl the International Hub for SCP Items and save to a custom location:
 scrapy crawl scp_int -o scp_international_items.json
 ```
 
+To crawl pages tagged as `supplement` and save to a custom location:
+
+```bash
+scrapy crawl scp_supplement -o scp_supplement.json
+```
+
 ## Raw Content Structure
 
-There are two types of content downloaded- SCP Items and SCP Tales.
+There are multiple types of content downloaded (Items, Tales, GOI formats, and Supplements).
 
 All content (both SCP Items and Tales) contain the following:
 
@@ -66,6 +72,7 @@ The crawler generates a series of json files containing an array of objects repr
 | scp_titles.json     | Main          | Title | scp     |
 | scp_hubs.json       | Main          | Hub   | scp     |
 | scp_tales.json      | Main          | Tale  | scp     |
+| scp_supplement.json | Main          | Supplement | scp |
 | scp_int.json        | International | Item  | scp_int |
 | scp_int_titles.json | International | Title | scp_int |
 | scp_int_tales.json  | International | Tale  | scp_int |
@@ -76,7 +83,9 @@ To regenerate all files run `make fresh`.
 
 ## Post Processed Data
 
-The postproc system takes the Titles, Hubs, Items, and Tales and uses them to generate a comprehensive set of objects. It combines and cross references data and expands on the data already there.
+The postproc system takes Titles, Hubs, Items, Tales, GOI, and Supplements and uses them to generate a comprehensive set of objects. It combines and cross references data and expands on the data already there.
+
+Supplements are written to `data/processed/supplement/` and include additional fields like `parent_scp` and `parent_tale`.
 
 
 ## Content Licensing
