@@ -9,6 +9,9 @@ on:
       - main
     paths:
       - .github/workflows/scp-items.yml
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -17,17 +20,14 @@ jobs:
   update-main-scp:
     runs-on: ubuntu-latest
     steps:
-      - name: "Clone this Repository"
+      - name: "Checkout Crawler"
         uses: actions/checkout@v6
-        with:
-          path: scp-api
 
-      - name: "Clone the Crawler"
+      - name: "Clone API Repository"
         uses: actions/checkout@v6
         with:
-          repository: heroheman/scp_crawler
-          ref: "main"
-          path: scp-crawler
+          repository: heroheman/scp-api
+          path: scp-api
 
       - name: "Setup Python"
         uses: actions/setup-python@v6
@@ -35,58 +35,47 @@ jobs:
           python-version: '3.13'
 
       - name: "Install Crawler"
-        working-directory: ./scp-crawler
         run: make install
 
       - name: "Crawl Titles"
-        working-directory: ./scp-crawler
         run: make data/scp_titles.json
 
       - name: "Crawl Hubs"
-        working-directory: ./scp-crawler
         run: make data/scp_hubs.json
 
       - name: "Crawl Items"
-        working-directory: ./scp-crawler
         run: make data/scp_items.json
 
       - name: "Process Items"
-        working-directory: ./scp-crawler
         run: make data/processed/items
 
       - name: "Crawl Tales"
-        working-directory: ./scp-crawler
         run: make data/scp_tales.json
 
       - name: "Process Tales"
-        working-directory: ./scp-crawler
         run: make data/processed/tales
 
       - name: "Crawl GOI"
-        working-directory: ./scp-crawler
         run: make data/goi.json
 
       - name: "Process GOI"
-        working-directory: ./scp-crawler
         run: make data/processed/goi
 
       - name: "Crawl Supplements"
-        working-directory: ./scp-crawler
         run: make data/scp_supplement.json
 
       - name: "Process Supplements"
-        working-directory: ./scp-crawler
         run: make data/processed/supplement
 
       - name: "Move Files into API"
-        run: cp -Rf ./scp-crawler/data/processed/* ./scp-api/docs/data/scp/
+        run: cp -Rf ./data/processed/* ./scp-api/docs/data/scp/
 
-      - name: "Push"
-        shell: bash
-        run: >
-          cd scp-api;
-          ./bin/push.sh;
+      # - name: "Push"
+      #   shell: bash
+      #   run: >
+      #     cd scp-api;
+      #     ./bin/push.sh;
 
-        env:
-          GIT_USER: "SCP Bot"
-          GIT_EMAIL: "scp@tedivm.com"
+      #   env:
+      #     GIT_USER: "SCP Bot"
+      #     GIT_EMAIL: "scp@tedivm.com"
