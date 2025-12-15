@@ -273,5 +273,53 @@ def run_postproc_goi():
     to_file(tales, processed_path / "index.json")
 
 
+@cli.command()
+def run_postproc_supplement():
+
+    processed_path = Path(cwd + "/data/processed/supplement")
+    os.makedirs(processed_path, exist_ok=True)
+
+    print("Processing Supplement list.")
+
+    supplement_list = from_file(cwd + "/data/scp_supplement.json")
+    supplements = {}
+    for supplement in tqdm(supplement_list, smoothing=0):
+
+        supplement["images"] = get_images(supplement["raw_content"])
+        supplement["hubs"] = get_hubs(supplement["link"])
+        supplement["raw_source"] = get_wiki_source(supplement["page_id"], supplement["domain"])
+
+        # Convert history dict to list and sort by date.
+        supplement["history"] = process_history(supplement["history"])
+
+        if len(supplement["history"]) > 0:
+            supplement["created_at"] = supplement["history"][0]["date"]
+            supplement["creator"] = supplement["history"][0]["author"]
+        else:
+            supplement["created_at"] = "unknown"
+            supplement["creator"] = "unknown"
+
+        supplement["link"] = supplement["url"].replace("https://scp-wiki.wikidot.com/", "")
+        
+        # Extract parent SCP from title or link
+        scp_match = re.search(r"scp-\d+", supplement["link"], re.IGNORECASE)
+        supplement["parent_scp"] = scp_match.group(0).upper() if scp_match else None
+        
+        # Extract parent tale series from link
+        tale_match = re.match(r"([a-z\-]+)-\d+$", supplement["link"])
+        supplement["parent_tale"] = tale_match.group(1) if tale_match else None
+        
+        supplements[supplement["link"]] = supplement
+
+    to_file(supplements, processed_path / f"content_supplement.json")
+
+    for supplement_id in supplements:
+        del supplements[supplement_id]["raw_content"]
+        del supplements[supplement_id]["raw_source"]
+        supplements[supplement_id]["content_file"] = f"content_supplement.json"
+
+    to_file(supplements, processed_path / "index.json")
+
+
 if __name__ == "__main__":
     cli()

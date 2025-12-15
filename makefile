@@ -3,7 +3,7 @@ PYTHON_VENV = source .venv/bin/activate &&
 
 install: .venv
 
-data: scp scp_int goi supplement
+data: scp scp_int goi
 
 fresh: clean data
 
@@ -14,11 +14,11 @@ clean:
 	python -m venv .venv
 	$(PYTHON_VENV) python -m pip install .
 
-crawl: scp scp_int goi supplement
+crawl: scp scp_int goi
 
 scp: scp_crawl scp_postprocess
 
-scp_crawl: data/scp_titles.json data/scp_hubs.json data/scp_items.json data/scp_tales.json data/goi.json
+scp_crawl: data/scp_titles.json data/scp_hubs.json data/scp_items.json data/scp_tales.json data/goi.json data/scp_supplement.json
 
 data/scp_titles.json: .venv
 	$(PYTHON_VENV) python -m scrapy crawl scp_titles -o data/scp_titles.json
@@ -37,12 +37,19 @@ goi: data/goi.json
 data/goi.json: .venv
 	$(PYTHON_VENV) python -m scrapy crawl goi -o data/goi.json
 
-supplement: data/scp_supplement.json
+supplement: supplement_crawl supplement_postprocess
+
+supplement_crawl: data/scp_supplement.json
 
 data/scp_supplement.json: .venv
 	$(PYTHON_VENV) python -m scrapy crawl scp_supplement -o data/scp_supplement.json
 
-scp_postprocess: scp_crawl data/processed/goi data/processed/items data/processed/tales
+supplement_postprocess: supplement_crawl data/processed/supplement
+
+data/processed/supplement: .venv
+	$(PYTHON_VENV) python -m scp_crawler.postprocessing run-postproc-supplement
+
+scp_postprocess: scp_crawl data/processed/goi data/processed/items data/processed/tales data/processed/supplement
 
 data/processed/goi: .venv
 	$(PYTHON_VENV) python -m scp_crawler.postprocessing run-postproc-goi
