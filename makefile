@@ -3,7 +3,7 @@ PYTHON_VENV = source .venv/bin/activate &&
 
 install: .venv
 
-data: scp scp_int goi
+data: scp scp_int goi supplement
 
 fresh: clean data
 
@@ -14,7 +14,7 @@ clean:
 	python -m venv .venv
 	$(PYTHON_VENV) python -m pip install .
 
-crawl: scp scp_int goi
+crawl: scp scp_int goi supplement
 
 scp: scp_crawl scp_postprocess
 
@@ -36,6 +36,11 @@ goi: data/goi.json
 
 data/goi.json: .venv
 	$(PYTHON_VENV) python -m scrapy crawl goi -o data/goi.json
+
+supplement: data/scp_supplement.json
+
+data/scp_supplement.json: .venv
+	$(PYTHON_VENV) python -m scrapy crawl scp_supplement -o data/scp_supplement.json
 
 scp_postprocess: scp_crawl data/processed/goi data/processed/items data/processed/tales
 

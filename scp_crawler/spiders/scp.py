@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 from scrapy.linkextractors import LinkExtractor
 from scrapy.spiders import CrawlSpider, Rule
 
-from ..items import ScpGoi, ScpHub, ScpItem, ScpTale, ScpTitle
+from ..items import ScpGoi, ScpHub, ScpItem, ScpSupplement, ScpTale, ScpTitle
 
 DOMAIN = "scp-wiki.wikidot.com"
 INT_DOMAIN = "scp-int.wikidot.com"
@@ -528,6 +528,53 @@ class GoiSpider(CrawlSpider, WikiMixin):
         item["page_id"] = self.get_page_id(response)
         item["rating"] = get_rating(response)
         item["raw_content"] = str(clean_content_soup(content_soup))
+        return self.get_history_request(item["page_id"], 1, item)
+
+
+class ScpSupplementSpider(CrawlSpider, WikiMixin):
+    name = "scp_supplement"
+
+    start_urls = [
+        f"http://{DOMAIN}/system:page-tags/tag/supplement",
+    ]
+
+    allowed_domains = [DOMAIN]
+
+    domain = DOMAIN
+
+    rules = (
+        Rule(LinkExtractor(allow=[re.escape("system:page-tags/tag/supplement")])),
+        Rule(LinkExtractor(allow=[r".*"]), callback="parse_supplement"),
+    )
+
+    def parse_supplement(self, response, original_link=None):
+        self.logger.debug("Reviewing Potential SCP Supplement page: %s", response.url)
+        content = self.get_content(response)
+        tags = self.get_tags(response)
+        
+        if not content or not tags:
+            return None
+
+        redirect = self.follow_splash_redirects(response, tags, self.parse_supplement)
+        if redirect:
+            return redirect
+
+        if "supplement" not in tags:
+            return None
+
+        self.logger.info("Processing SCP Supplement page: %s", response.url)
+        content_soup = BeautifulSoup(content, "lxml")
+
+        item = ScpSupplement()
+        item["title"] = self.get_title(response)
+        item["url"] = response.url
+        item["domain"] = self.domain
+        item["link"] = original_link if original_link else self.get_simple_link(response.url)
+        item["tags"] = tags
+        item["page_id"] = self.get_page_id(response)
+        item["rating"] = get_rating(response)
+        item["raw_content"] = str(clean_content_soup(content_soup))
+        item["references"] = self.get_content_references(response)
         return self.get_history_request(item["page_id"], 1, item)
 
 
