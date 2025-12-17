@@ -112,7 +112,7 @@ for hub in tqdm(
     hub_list,
 ):
     # Convert history dict to list and sort by date.
-    hub["history"] = process_history(hub["history"])
+    hub["history"] = process_history(hub.get("history"))
 
     if len(hub["history"]) > 0:
         hub["created_at"] = hub["history"][0]["date"]
@@ -161,7 +161,7 @@ def run_postproc_items():
         item["hubs"] = get_hubs(item["link"])
 
         # Convert history dict to list and sort by date.
-        item["history"] = process_history(item["history"])
+        item["history"] = process_history(item.get("history"))
 
         if len(item["history"]) > 0:
             item["created_at"] = item["history"][0]["date"]
