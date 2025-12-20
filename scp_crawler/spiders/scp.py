@@ -632,25 +632,3 @@ class ScpSupplementSpider(CrawlSpider, WikiMixin):
         item["rating"] = get_rating(response)
         item["raw_content"] = str(clean_content_soup(content_soup))
         item["references"] = self.get_content_references(response)
-        return self.get_history_request(item["page_id"], 1, item)
-
-
-def get_rating(response):
-    try:
-        return int(response.css(".rate-points .number::text").get())
-    except:
-        pass
-    return 0
-
-
-def clean_content_soup(content_soup):
-    # Remove Footer
-    [x.extract() for x in content_soup.find_all("div", {"class": "footer-wikiwalk-nav"})]
-
-    # Remove Ratings Bar
-    [x.extract() for x in content_soup.find_all("div", {"class": "page-rate-widget-box"})]
-
-    # Remove Empty Divs
-    [x.extract() for x in content_soup.find_all("div") if len(x.get_text(strip=True)) == 0]
-
-    return content_soup

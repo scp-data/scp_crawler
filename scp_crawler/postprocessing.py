@@ -103,15 +103,33 @@ def get_wiki_source(page_id, domain, attempts=5):
 
 
 
+
+
+
 print("Processing Hub list.")
 
 hub_list = from_file(cwd + "/data/scp_hubs.json")
 hub_items = {}
 hub_references = {}
-for hub in tqdm(
-    hub_list,
-):
-    # Convert history dict to list and sort by date.
+
+# Load paginated links if available (fetched separately)
+paginated_links_file = cwd + "/data/paginated_links.json"
+paginated_links_data = {}
+if os.path.exists(paginated_links_file):
+    print("Loading paginated links...")
+    paginated_links_data = from_file(paginated_links_file)
+    print(f"Loaded pagination data for {len(paginated_links_data)} hubs")
+
+# Process hubs
+for hub in tqdm(hub_list):
+    link = hub.get("link", "")
+    
+    # Skip paginated hub pages (should not exist with new method)
+    if "/p/" in link:
+        print(f"  Skipping paginated hub page: {link}")
+        continue
+    
+    # Convert history dict to list and sort by date
     hub["history"] = process_history(hub.get("history"))
 
     if len(hub["history"]) > 0:
@@ -120,9 +138,24 @@ for hub in tqdm(
     else:
         hub["created_at"] = "unknown"
         hub["creator"] = "unknown"
+    
+    # Add paginated links to references if available
+    if link in paginated_links_data:
+        # Collect all links from all paginated pages
+        all_paginated_links = []
+        for page_num, page_data in paginated_links_data[link].items():
+            all_paginated_links.extend(page_data.get("links", []))
+        
+        # Add to existing references (avoid duplicates)
+        existing_refs = set(hub.get("references", []))
+        new_refs = existing_refs.union(set(all_paginated_links))
+        hub["references"] = list(new_refs)
+        
+        added_count = len(new_refs) - len(existing_refs)
+        print(f"  Added {added_count} new links from {len(paginated_links_data[link])} paginated page(s) to {link}")
 
-    hub_items[hub["link"]] = hub
-    hub_references[hub["link"]] = set(hub["references"])
+    hub_items[link] = hub
+    hub_references[link] = set(hub["references"])
 
 hub_dir = Path(cwd + "/data/processed/hubs")
 os.makedirs(hub_dir, exist_ok=True)
