@@ -2,18 +2,10 @@ name: Crawl SCP Wiki
 
 on:
   workflow_dispatch:
-#   schedule:
-#     - cron: "0 0 * * *"
-  # push:
-    # branches:
-    #   - main
-    # paths:
-    #   - .github/workflows/scp-items.yml
   pull_request:
+  push:
     branches:
       - main
-    paths:
-      - .github/workflows/scp-items.yml
 
 permissions:
   contents: write
