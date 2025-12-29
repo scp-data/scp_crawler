@@ -33,6 +33,10 @@ class ScpGoi(WikiPage):
     pass
 
 
+class ScpSupplement(WikiPage):
+    pass
+
+
 class ScpTitle(scrapy.Item):
     title = scrapy.Field()
     scp = scrapy.Field()
