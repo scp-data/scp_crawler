@@ -1,3 +1,4 @@
+import json
 import re
 import sys
 from pprint import pprint
@@ -28,13 +29,67 @@ class WikiMixin:
         self.logger.info(f"Reviewing Page {item['page_id']} history")
 
         page_id = item["page_id"]
-        changes = item["history"] if "history" in item else {}
+        changes = item.get("history", {})
+        item["history"] = changes  # Ensure history key always exists
+
         try:
+            response_text = getattr(response, "text", "") or ""
+            if not response_text.strip():
+                self.logger.error(
+                    "Empty response when fetching history for %s (status=%s, page=%s)",
+                    item.get("url"),
+                    getattr(response, "status", None),
+                    history_page,
+                )
+                return self.get_page_source_request(page_id, item)
+
             history = response.json()
-            soup = BeautifulSoup(history["body"], "lxml")
+            if not isinstance(history, dict) or "body" not in history:
+                self.logger.error(
+                    "Missing 'body' in history lookup for %s (status=%s, page=%s). Keys=%s",
+                    item.get("url"),
+                    getattr(response, "status", None),
+                    history_page,
+                    list(history.keys()) if isinstance(history, dict) else type(history),
+                )
+                return self.get_page_source_request(page_id, item)
+
+            body = history.get("body")
+            if not body:
+                self.logger.error(
+                    "Empty 'body' in history lookup for %s (status=%s, page=%s)",
+                    item.get("url"),
+                    getattr(response, "status", None),
+                    history_page,
+                )
+                return self.get_page_source_request(page_id, item)
+
+            soup = BeautifulSoup(body, "lxml")
+            if soup.table is None:
+                self.logger.error(
+                    "Missing <table> in history HTML for %s (status=%s, page=%s)",
+                    item.get("url"),
+                    getattr(response, "status", None),
+                    history_page,
+                )
+                return self.get_page_source_request(page_id, item)
             rows = soup.table.find_all("tr")
-        except:
-            self.logger.exception(f"Unable to parse history lookup. {item['url']}")
+
+        except (json.JSONDecodeError, ValueError):
+            self.logger.error(
+                "JSON decode error in history lookup for %s (status=%s, page=%s)",
+                item.get("url"),
+                getattr(response, "status", None),
+                history_page,
+            )
+            return self.get_page_source_request(page_id, item)
+        except Exception:
+            self.logger.exception(
+                "Unable to parse history lookup for %s (status=%s, page=%s)",
+                item.get("url"),
+                getattr(response, "status", None),
+                history_page,
+            )
             return self.get_page_source_request(page_id, item)
         for row in rows:
             try:
@@ -62,11 +117,13 @@ class WikiMixin:
                 self.logger.exception("Could not process row.")
                 self.logger.error(row)
 
-            item["history"] = changes
-            # The "0" change is the first revision, and the last one that shows up.
-            # If we have it then we're done.
-            if "0" in changes:
-                return self.get_page_source_request(page_id, item)
+        # Update item history after processing all rows
+        item["history"] = changes
+        
+        # The "0" change is the first revision, and the last one that shows up.
+        # If we have it then we're done.
+        if "0" in changes:
+            return self.get_page_source_request(page_id, item)
 
         next_page = history_page + 1
         if next_page > MAX_HISTORY_PAGES:

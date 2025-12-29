@@ -45,11 +45,29 @@ def get_images(html):
 
 
 def process_history(history):
-    history = [v for v in history.values()]
-    for revision in history:
-        revision["date"] = datetime.strptime(revision["date"], "%d %b %Y %H:%M")
-    history.sort(key=lambda x: x["date"])
-    return history
+    if not history:
+        return []
+
+    if isinstance(history, dict):
+        revisions = list(history.values())
+    elif isinstance(history, list):
+        revisions = history
+    else:
+        return []
+
+    for revision in revisions:
+        if not isinstance(revision, dict):
+            continue
+        revision_date = revision.get("date")
+        if isinstance(revision_date, str):
+            try:
+                revision["date"] = datetime.strptime(revision_date, "%d %b %Y %H:%M")
+            except Exception:
+                # Keep original value if parsing fails.
+                pass
+
+    revisions.sort(key=lambda x: x.get("date") or datetime.min)
+    return revisions
 
 
 def get_wiki_source(page_id, domain, attempts=5):
@@ -94,7 +112,7 @@ for hub in tqdm(
     hub_list,
 ):
     # Convert history dict to list and sort by date.
-    hub["history"] = process_history(hub["history"])
+    hub["history"] = process_history(hub.get("history"))
 
     if len(hub["history"]) > 0:
         hub["created_at"] = hub["history"][0]["date"]
@@ -143,7 +161,7 @@ def run_postproc_items():
         item["hubs"] = get_hubs(item["link"])
 
         # Convert history dict to list and sort by date.
-        item["history"] = process_history(item["history"])
+        item["history"] = process_history(item.get("history"))
 
         if len(item["history"]) > 0:
             item["created_at"] = item["history"][0]["date"]
@@ -200,7 +218,7 @@ def run_postproc_tales():
         tale["raw_source"] = get_wiki_source(tale["page_id"], tale["domain"])
 
         # Convert history dict to list and sort by date.
-        tale["history"] = process_history(tale["history"])
+        tale["history"] = process_history(tale.get("history"))
 
         if len(tale["history"]) > 0:
             tale["created_at"] = tale["history"][0]["date"]
