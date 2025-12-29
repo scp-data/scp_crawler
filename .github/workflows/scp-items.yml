@@ -37,6 +37,9 @@ jobs:
       - name: "Crawl Hubs"
         run: make data/scp_hubs.json
 
+      - name: "Process Hubs"
+        run: make data/processed/hubs
+
       - name: "Crawl Items"
         run: make data/scp_items.json
 

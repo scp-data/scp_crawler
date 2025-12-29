@@ -45,11 +45,29 @@ def get_images(html):
 
 
 def process_history(history):
-    history = [v for v in history.values()]
-    for revision in history:
-        revision["date"] = datetime.strptime(revision["date"], "%d %b %Y %H:%M")
-    history.sort(key=lambda x: x["date"])
-    return history
+    if not history:
+        return []
+
+    if isinstance(history, dict):
+        revisions = list(history.values())
+    elif isinstance(history, list):
+        revisions = history
+    else:
+        return []
+
+    for revision in revisions:
+        if not isinstance(revision, dict):
+            continue
+        revision_date = revision.get("date")
+        if isinstance(revision_date, str):
+            try:
+                revision["date"] = datetime.strptime(revision_date, "%d %b %Y %H:%M")
+            except Exception:
+                # Keep original value if parsing fails.
+                pass
+
+    revisions.sort(key=lambda x: x.get("date") or datetime.min)
+    return revisions
 
 
 def get_wiki_source(page_id, domain, attempts=5):
@@ -85,16 +103,34 @@ def get_wiki_source(page_id, domain, attempts=5):
 
 
 
+
+
+
 print("Processing Hub list.")
 
 hub_list = from_file(cwd + "/data/scp_hubs.json")
 hub_items = {}
 hub_references = {}
-for hub in tqdm(
-    hub_list,
-):
-    # Convert history dict to list and sort by date.
-    hub["history"] = process_history(hub["history"])
+
+# Load paginated links if available (fetched separately)
+paginated_links_file = cwd + "/data/paginated_links.json"
+paginated_links_data = {}
+if os.path.exists(paginated_links_file):
+    print("Loading paginated links...")
+    paginated_links_data = from_file(paginated_links_file)
+    print(f"Loaded pagination data for {len(paginated_links_data)} hubs")
+
+# Process hubs
+for hub in tqdm(hub_list):
+    link = hub.get("link", "")
+    
+    # Skip paginated hub pages (should not exist with new method)
+    if "/p/" in link:
+        print(f"  Skipping paginated hub page: {link}")
+        continue
+    
+    # Convert history dict to list and sort by date
+    hub["history"] = process_history(hub.get("history"))
 
     if len(hub["history"]) > 0:
         hub["created_at"] = hub["history"][0]["date"]
@@ -102,9 +138,24 @@ for hub in tqdm(
     else:
         hub["created_at"] = "unknown"
         hub["creator"] = "unknown"
+    
+    # Add paginated links to references if available
+    if link in paginated_links_data:
+        # Collect all links from all paginated pages
+        all_paginated_links = []
+        for page_num, page_data in paginated_links_data[link].items():
+            all_paginated_links.extend(page_data.get("links", []))
+        
+        # Add to existing references (avoid duplicates)
+        existing_refs = set(hub.get("references", []))
+        new_refs = existing_refs.union(set(all_paginated_links))
+        hub["references"] = list(new_refs)
+        
+        added_count = len(new_refs) - len(existing_refs)
+        print(f"  Added {added_count} new links from {len(paginated_links_data[link])} paginated page(s) to {link}")
 
-    hub_items[hub["link"]] = hub
-    hub_references[hub["link"]] = set(hub["references"])
+    hub_items[link] = hub
+    hub_references[link] = set(hub["references"])
 
 hub_dir = Path(cwd + "/data/processed/hubs")
 os.makedirs(hub_dir, exist_ok=True)
@@ -143,7 +194,7 @@ def run_postproc_items():
         item["hubs"] = get_hubs(item["link"])
 
         # Convert history dict to list and sort by date.
-        item["history"] = process_history(item["history"])
+        item["history"] = process_history(item.get("history"))
 
         if len(item["history"]) > 0:
             item["created_at"] = item["history"][0]["date"]
@@ -200,7 +251,7 @@ def run_postproc_tales():
         tale["raw_source"] = get_wiki_source(tale["page_id"], tale["domain"])
 
         # Convert history dict to list and sort by date.
-        tale["history"] = process_history(tale["history"])
+        tale["history"] = process_history(tale.get("history"))
 
         if len(tale["history"]) > 0:
             tale["created_at"] = tale["history"][0]["date"]
@@ -271,6 +322,54 @@ def run_postproc_goi():
         tales[tale_id]["content_file"] = f"content_goi.json"
 
     to_file(tales, processed_path / "index.json")
+
+
+@cli.command()
+def run_postproc_supplement():
+
+    processed_path = Path(cwd + "/data/processed/supplement")
+    os.makedirs(processed_path, exist_ok=True)
+
+    print("Processing Supplement list.")
+
+    supplement_list = from_file(cwd + "/data/scp_supplement.json")
+    supplements = {}
+    for supplement in tqdm(supplement_list, smoothing=0):
+
+        supplement["images"] = get_images(supplement["raw_content"])
+        supplement["hubs"] = get_hubs(supplement["link"])
+        supplement["raw_source"] = get_wiki_source(supplement["page_id"], supplement["domain"])
+
+        # Convert history dict to list and sort by date.
+        supplement["history"] = process_history(supplement["history"])
+
+        if len(supplement["history"]) > 0:
+            supplement["created_at"] = supplement["history"][0]["date"]
+            supplement["creator"] = supplement["history"][0]["author"]
+        else:
+            supplement["created_at"] = "unknown"
+            supplement["creator"] = "unknown"
+
+        supplement["link"] = supplement["url"].replace("https://scp-wiki.wikidot.com/", "")
+        
+        # Extract parent SCP from title or link
+        scp_match = re.search(r"scp-\d+", supplement["link"], re.IGNORECASE)
+        supplement["parent_scp"] = scp_match.group(0).upper() if scp_match else None
+        
+        # Extract parent tale series from link
+        tale_match = re.match(r"([a-z\-]+)-\d+$", supplement["link"])
+        supplement["parent_tale"] = tale_match.group(1) if tale_match else None
+        
+        supplements[supplement["link"]] = supplement
+
+    to_file(supplements, processed_path / f"content_supplement.json")
+
+    for supplement_id in supplements:
+        del supplements[supplement_id]["raw_content"]
+        del supplements[supplement_id]["raw_source"]
+        supplements[supplement_id]["content_file"] = f"content_supplement.json"
+
+    to_file(supplements, processed_path / "index.json")
 
 
 if __name__ == "__main__":

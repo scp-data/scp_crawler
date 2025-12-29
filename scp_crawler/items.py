@@ -22,7 +22,7 @@ class ScpItem(WikiPage):
 
 
 class ScpHub(WikiPage):
-    pass
+    paginated_content = scrapy.Field()
 
 
 class ScpTale(WikiPage):
@@ -30,6 +30,10 @@ class ScpTale(WikiPage):
 
 
 class ScpGoi(WikiPage):
+    pass
+
+
+class ScpSupplement(WikiPage):
     pass
 
 

@@ -1,3 +1,4 @@
+import json
 import re
 import sys
 from pprint import pprint
@@ -8,7 +9,7 @@ from bs4 import BeautifulSoup
 from scrapy.linkextractors import LinkExtractor
 from scrapy.spiders import CrawlSpider, Rule
 
-from ..items import ScpGoi, ScpHub, ScpItem, ScpTale, ScpTitle
+from ..items import ScpGoi, ScpHub, ScpItem, ScpSupplement, ScpTale, ScpTitle
 
 DOMAIN = "scp-wiki.wikidot.com"
 INT_DOMAIN = "scp-int.wikidot.com"
@@ -28,13 +29,67 @@ class WikiMixin:
         self.logger.info(f"Reviewing Page {item['page_id']} history")
 
         page_id = item["page_id"]
-        changes = item["history"] if "history" in item else {}
+        changes = item.get("history", {})
+        item["history"] = changes  # Ensure history key always exists
+
         try:
+            response_text = getattr(response, "text", "") or ""
+            if not response_text.strip():
+                self.logger.error(
+                    "Empty response when fetching history for %s (status=%s, page=%s)",
+                    item.get("url"),
+                    getattr(response, "status", None),
+                    history_page,
+                )
+                return self.get_page_source_request(page_id, item)
+
             history = response.json()
-            soup = BeautifulSoup(history["body"], "lxml")
+            if not isinstance(history, dict) or "body" not in history:
+                self.logger.error(
+                    "Missing 'body' in history lookup for %s (status=%s, page=%s). Keys=%s",
+                    item.get("url"),
+                    getattr(response, "status", None),
+                    history_page,
+                    list(history.keys()) if isinstance(history, dict) else type(history),
+                )
+                return self.get_page_source_request(page_id, item)
+
+            body = history.get("body")
+            if not body:
+                self.logger.error(
+                    "Empty 'body' in history lookup for %s (status=%s, page=%s)",
+                    item.get("url"),
+                    getattr(response, "status", None),
+                    history_page,
+                )
+                return self.get_page_source_request(page_id, item)
+
+            soup = BeautifulSoup(body, "lxml")
+            if soup.table is None:
+                self.logger.error(
+                    "Missing <table> in history HTML for %s (status=%s, page=%s)",
+                    item.get("url"),
+                    getattr(response, "status", None),
+                    history_page,
+                )
+                return self.get_page_source_request(page_id, item)
             rows = soup.table.find_all("tr")
-        except:
-            self.logger.exception(f"Unable to parse history lookup. {item['url']}")
+
+        except (json.JSONDecodeError, ValueError):
+            self.logger.error(
+                "JSON decode error in history lookup for %s (status=%s, page=%s)",
+                item.get("url"),
+                getattr(response, "status", None),
+                history_page,
+            )
+            return self.get_page_source_request(page_id, item)
+        except Exception:
+            self.logger.exception(
+                "Unable to parse history lookup for %s (status=%s, page=%s)",
+                item.get("url"),
+                getattr(response, "status", None),
+                history_page,
+            )
             return self.get_page_source_request(page_id, item)
         for row in rows:
             try:
@@ -62,11 +117,13 @@ class WikiMixin:
                 self.logger.exception("Could not process row.")
                 self.logger.error(row)
 
-            item["history"] = changes
-            # The "0" change is the first revision, and the last one that shows up.
-            # If we have it then we're done.
-            if "0" in changes:
-                return self.get_page_source_request(page_id, item)
+        # Update item history after processing all rows
+        item["history"] = changes
+        
+        # The "0" change is the first revision, and the last one that shows up.
+        # If we have it then we're done.
+        if "0" in changes:
+            return self.get_page_source_request(page_id, item)
 
         next_page = history_page + 1
         if next_page > MAX_HISTORY_PAGES:
@@ -531,22 +588,47 @@ class GoiSpider(CrawlSpider, WikiMixin):
         return self.get_history_request(item["page_id"], 1, item)
 
 
-def get_rating(response):
-    try:
-        return int(response.css(".rate-points .number::text").get())
-    except:
-        pass
-    return 0
+class ScpSupplementSpider(CrawlSpider, WikiMixin):
+    name = "scp_supplement"
 
+    start_urls = [
+        f"http://{DOMAIN}/system:page-tags/tag/supplement",
+    ]
 
-def clean_content_soup(content_soup):
-    # Remove Footer
-    [x.extract() for x in content_soup.find_all("div", {"class": "footer-wikiwalk-nav"})]
+    allowed_domains = [DOMAIN]
 
-    # Remove Ratings Bar
-    [x.extract() for x in content_soup.find_all("div", {"class": "page-rate-widget-box"})]
+    domain = DOMAIN
 
-    # Remove Empty Divs
-    [x.extract() for x in content_soup.find_all("div") if len(x.get_text(strip=True)) == 0]
+    rules = (
+        Rule(LinkExtractor(allow=[re.escape("system:page-tags/tag/supplement")])),
+        Rule(LinkExtractor(allow=[r".*"]), callback="parse_supplement"),
+    )
 
-    return content_soup
+    def parse_supplement(self, response, original_link=None):
+        self.logger.debug("Reviewing Potential SCP Supplement page: %s", response.url)
+        content = self.get_content(response)
+        tags = self.get_tags(response)
+        
+        if not content or not tags:
+            return None
+
+        redirect = self.follow_splash_redirects(response, tags, self.parse_supplement)
+        if redirect:
+            return redirect
+
+        if "supplement" not in tags:
+            return None
+
+        self.logger.info("Processing SCP Supplement page: %s", response.url)
+        content_soup = BeautifulSoup(content, "lxml")
+
+        item = ScpSupplement()
+        item["title"] = self.get_title(response)
+        item["url"] = response.url
+        item["domain"] = self.domain
+        item["link"] = original_link if original_link else self.get_simple_link(response.url)
+        item["tags"] = tags
+        item["page_id"] = self.get_page_id(response)
+        item["rating"] = get_rating(response)
+        item["raw_content"] = str(clean_content_soup(content_soup))
+        item["references"] = self.get_content_references(response)
