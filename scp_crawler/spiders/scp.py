@@ -386,8 +386,10 @@ class ScpHubSpider(CrawlSpider, WikiMixin):
     domain = DOMAIN
 
     rules = (
+        # The hub listing paginates, so follow its own pages - but only its own.
+        # Every other tag page is still denied below; they slam the system and give 503s.
+        Rule(LinkExtractor(allow=[r"system:page-tags/tag/hub(?:/p/\d+)?$"])),
         Rule(
-            # Crawl everything except tag pages, which slam the system and give 503s.
             LinkExtractor(allow=[r".*"], deny=[r"system:page-tags.*", re.escape("tag-search")]),
             callback="parse_hub",
         ),
@@ -528,6 +530,7 @@ class GoiSpider(CrawlSpider, WikiMixin):
         item["page_id"] = self.get_page_id(response)
         item["rating"] = get_rating(response)
         item["raw_content"] = str(clean_content_soup(content_soup))
+        item["references"] = self.get_content_references(response)
         return self.get_history_request(item["page_id"], 1, item)
 
 
